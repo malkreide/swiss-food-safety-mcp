@@ -4,6 +4,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 ![No Auth Required](https://img.shields.io/badge/auth-none%20required-brightgreen)
+![CI](https://github.com/malkreide/swiss-food-safety-mcp/actions/workflows/ci.yml/badge.svg)
 
 > MCP Server for Swiss Federal Food Safety and Veterinary Office (BLV) open data — no authentication required.
 
@@ -100,6 +101,7 @@ swiss-food-safety-mcp --http
 ```
 
 For Render.com, set the start command to:
+
 ```
 swiss-food-safety-mcp --http
 ```
@@ -111,7 +113,7 @@ swiss-food-safety-mcp --http
 | `blv_get_public_warnings` | Current food recalls & health warnings | news.admin.ch RSS |
 | `blv_list_datasets` | Browse all 28 BLV open datasets | opendata.swiss CKAN |
 | `blv_get_dataset_info` | Dataset details & resource URLs | opendata.swiss CKAN |
-| `blv_search_animal_diseases` | Notifiable animal diseases since 1991 | SPARQL / CSV |
+| `blv_search_animal_diseases` | Notifiable animal diseases since 1991 | SPARQL / CSV fallback |
 | `blv_get_animal_health_stats` | Annual animal health statistics | opendata.swiss CSV/JSON |
 | `blv_get_food_control_results` | Cantonal food inspection results | opendata.swiss CSV |
 | `blv_get_antibiotic_usage_vet` | Veterinary antibiotic usage (ISABV) | opendata.swiss CSV |
@@ -154,9 +156,10 @@ swiss-food-safety-mcp --http
 swiss-food-safety-mcp/
 ├── src/
 │   └── swiss_food_safety_mcp/
-│       ├── __init__.py
+│       ├── __init__.py        # Package metadata
 │       └── server.py          # All tools, resources, prompts
 ├── tests/
+│   ├── __init__.py
 │   └── test_server.py         # Unit tests (no live API calls)
 ├── .github/
 │   └── workflows/
