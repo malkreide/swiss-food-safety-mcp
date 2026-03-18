@@ -1,22 +1,32 @@
 [🇬🇧 English Version](README.md)
 
+> 🇨🇭 **Teil des [Swiss Public Data MCP Portfolios](https://github.com/malkreide)**
+
 # swiss-food-safety-mcp
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![Lizenz](https://img.shields.io/badge/lizenz-MIT-green)
-![Python](https://img.shields.io/badge/python-3.11+-blue)
+[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-purple)](https://modelcontextprotocol.io/)
+[![Datenquelle](https://img.shields.io/badge/Daten-opendata.swiss%20%2F%20BLV-red)](https://opendata.swiss/de/organization/bundesamt-fur-lebensmittelsicherheit-und-veterinaerwesen-blv)
 ![Keine Authentifizierung](https://img.shields.io/badge/auth-keine%20erforderlich-brightgreen)
 ![CI](https://github.com/malkreide/swiss-food-safety-mcp/actions/workflows/ci.yml/badge.svg)
 
-> MCP-Server für offene Daten des Bundesamts für Lebensmittelsicherheit und Veterinärwesen (BLV) — keine Authentifizierung erforderlich.
+> MCP-Server, der KI-Modelle mit den offenen Daten des Bundesamts für Lebensmittelsicherheit und Veterinärwesen (BLV) verbindet – Lebensmittelrückrufe, Tierseuchenüberwachung, Lebensmittelkontrollergebnisse, Antibiotikaeinsatz, Kinderernährungserhebungen und das Pflanzenschutzmittelverzeichnis. Keine Authentifizierung erforderlich.
+
+---
 
 ## Übersicht
 
-`swiss-food-safety-mcp` verbindet KI-Modelle mit den offiziellen Open-Data-Quellen des Bundesamts für Lebensmittelsicherheit und Veterinärwesen (BLV). Der Server stellt 11 Werkzeuge bereit, die Lebensmittelrückrufe, Tierseuchenüberwachung, Lebensmittelkontrollergebnisse, Antibiotikaeinsatz in der Veterinärmedizin, Ernährungserhebungen bei Kindern sowie das Pflanzenschutzmittelverzeichnis abdecken.
+**swiss-food-safety-mcp** gibt KI-Assistenten wie Claude direkten Zugriff auf offizielle Schweizer Lebensmittelsicherheits- und Veterinärdaten des Bundesamts für Lebensmittelsicherheit und Veterinärwesen (BLV). Der Server stellt 11 Werkzeuge bereit, die Lebensmittelrückrufe, Tierseuchenüberwachung, Lebensmittelkontrollergebnisse, Antibiotikaeinsatz in der Veterinärmedizin, Ernährungserhebungen bei Kindern sowie das Pflanzenschutzmittelverzeichnis abdecken.
 
 Alle Daten stammen aus offiziellen Schweizer Bundesquellen (opendata.swiss, lindas.admin.ch, news.admin.ch). Es sind keine API-Schlüssel oder Authentifizierung erforderlich.
 
 Dieser Server folgt der **No-Auth-First**-Philosophie und ist Teil eines MCP-Server-Portfolios für den öffentlichen Sektor der Schweiz.
+
+**Anker-Demo-Abfrage:** *«Gibt es aktuelle BLV-Lebensmittelwarnungen, die für Zürcher Schulküchen relevant sein könnten – und welche Tierseuchen sind derzeit im Kanton Zürich gemeldet?»*
+
+---
 
 ## Funktionen
 
@@ -31,10 +41,14 @@ Dieser Server folgt der **No-Auth-First**-Philosophie und ist Teil eines MCP-Ser
 - 🔗 **Dualer Transport** — stdio (Claude Desktop) + Streamable HTTP (Cloud/Render.com)
 - 🗣️ **Zweisprachig** — Deutsch als Primärdokumentation, Englisch sekundär
 
+---
+
 ## Voraussetzungen
 
 - Python 3.11+
 - `uv` oder `uvx` (empfohlen) — [uv installieren](https://docs.astral.sh/uv/getting-started/installation/)
+
+---
 
 ## Installation
 
@@ -60,14 +74,14 @@ uv sync
 uv run swiss-food-safety-mcp
 ```
 
-## Verwendung / Schnellstart
+---
 
-### Claude Desktop
+## Schnellstart
 
 In `claude_desktop_config.json` eintragen:
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`  
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -79,6 +93,11 @@ In `claude_desktop_config.json` eintragen:
   }
 }
 ```
+
+Sofort in Claude Desktop ausprobieren:
+
+> *«Welche BLV-Lebensmittelwarnungen sind aktuell aktiv?»*  
+> *«Gibt es im Kanton Zürich 2024 gemeldete Tierseuchen?»*
 
 ### Weitere MCP-Clients (Cursor, Windsurf, VS Code + Continue)
 
@@ -95,16 +114,22 @@ In `claude_desktop_config.json` eintragen:
 
 ### Cloud-Deployment (Streamable HTTP)
 
+Für den Einsatz via **claude.ai im Browser** (z.B. auf verwalteten Arbeitsplätzen ohne lokale Software-Installation):
+
 ```bash
 swiss-food-safety-mcp --http
 # Server läuft auf Port 8002
 ```
 
-Für Render.com als Startbefehl eintragen:
+**Render.com (empfohlen):**
+1. Repository auf GitHub pushen/forken
+2. Auf [render.com](https://render.com): New Web Service → GitHub-Repo verbinden
+3. Startbefehl setzen auf: `swiss-food-safety-mcp --http`
+4. In claude.ai unter Settings → MCP Servers eintragen: `https://your-app.onrender.com/mcp`
 
-```
-swiss-food-safety-mcp --http
-```
+> 💡 *«stdio für den Entwickler-Laptop, Streamable HTTP für den Browser.»*
+
+---
 
 ## Verfügbare Werkzeuge
 
@@ -122,24 +147,31 @@ swiss-food-safety-mcp --http
 | `blv_search_pesticide_products` | Schweizer Pflanzenschutzmittelverzeichnis | opendata.swiss XML |
 | `blv_get_meat_inspection_stats` | Schlachttier-Inspektionsstatistiken | opendata.swiss CSV/JSON |
 
-## Beispielanfragen
+### Beispielanfragen
+
+| Abfrage | Werkzeug |
+|---|---|
+| *«Welche BLV-Lebensmittelwarnungen sind aktuell aktiv?»* | `blv_get_public_warnings` |
+| *«Gibt es Tierseuchen im Kanton Zürich 2024?»* | `blv_search_animal_diseases` |
+| *«Wie ist die Vogelgrippe-Situation in der Schweiz 2024?»* | `blv_get_avian_influenza` |
+| *«Was essen Schweizer Kinder wirklich?»* | `blv_get_nutrition_data_children` |
+| *«Welche Pflanzenschutzmittel mit Kupfer sind in der Schweiz zugelassen?»* | `blv_search_pesticide_products` |
+
+---
+
+## Architektur
 
 ```
-"Welche Lebensmittelwarnungen hat das BLV aktuell?"
-→ blv_get_public_warnings()
-
-"Gibt es aktuell Tierseuchen in Zürich?"
-→ blv_search_animal_diseases(canton="ZH", year_from=2024)
-
-"Wie ist die Vogelgrippe-Situation in der Schweiz 2024?"
-→ blv_get_avian_influenza(year=2024)
-
-"Was essen Schweizer Kinder wirklich?"
-→ blv_get_nutrition_data_children()
-
-"Welche Pflanzenschutzmittel mit Kupfer sind in der Schweiz zugelassen?"
-→ blv_search_pesticide_products(active_ingredient="Kupfer")
+┌─────────────────┐     ┌─────────────────────────────┐     ┌──────────────────────────────┐
+│   Claude / KI   │────▶│   Swiss Food Safety MCP     │────▶│  Schweizer Bundesopen Data   │
+│   (MCP Host)    │◀────│   (MCP Server)              │◀────│                              │
+└─────────────────┘     │                             │     │  opendata.swiss (CKAN/CSV)   │
+                        │  11 Werkzeuge · Keine Auth  │     │  lindas.admin.ch (SPARQL)    │
+                        │  Stdio | Streamable HTTP    │     │  news.admin.ch (RSS/XML)     │
+                        └─────────────────────────────┘     └──────────────────────────────┘
 ```
+
+---
 
 ## Synergien mit verwandten MCP-Servern
 
@@ -149,6 +181,8 @@ swiss-food-safety-mcp --http
 | `swiss-food-safety-mcp` + `fedlex-mcp` | Rückrufe mit Lebensmittelgesetz verknüpfen |
 | `swiss-food-safety-mcp` + `swiss-statistics-mcp` | Ernährungsdaten × Sozioökonomie nach Schulkreis |
 | `swiss-food-safety-mcp` + `global-education-mcp` | Schweizer Kinderernährung vs. OECD-Benchmarks |
+
+---
 
 ## Projektstruktur
 
@@ -165,11 +199,14 @@ swiss-food-safety-mcp/
 │   └── workflows/
 │       └── ci.yml             # Python 3.11–3.13 Matrix
 ├── pyproject.toml             # hatchling Build, uv-kompatibel
-├── README.md                  # Englisch (primär)
-├── README.de.md               # Deutsch (sekundär)
+├── CHANGELOG.md
+├── CONTRIBUTING.md
 ├── LICENSE                    # MIT
-└── CHANGELOG.md
+├── README.md                  # Englisch (primär)
+└── README.de.md               # Diese Datei (Deutsch)
 ```
+
+---
 
 ## Datenquellen
 
@@ -182,18 +219,57 @@ swiss-food-safety-mcp/
 
 Alle Daten sind Open Government Data (OGD) unter Creative Commons mit Quellenangabepflicht.
 
+---
+
+## Bekannte Einschränkungen
+
+- **SPARQL-Endpunkt:** Automatischer Fallback auf CSV, falls lindas.admin.ch nicht erreichbar ist
+- **RSS-Feed:** Auf aktuelle BLV-Publikationen begrenzt; kein historisches Archiv
+- **Pflanzenschutzmittelverzeichnis:** XML-Parsing kann bei grossen Ergebnismengen langsam sein
+- **CKAN-Datensätze:** Opendata.swiss-Ratenlimits gelten bei intensiver Nutzung
+- **Tierseuchendaten:** Kantonsfilterung abhängig von der Datenvollständigkeit in der Quelle
+
+---
+
+## Tests
+
+```bash
+# Unit-Tests (kein API-Zugriff erforderlich)
+PYTHONPATH=src pytest tests/ -m "not live"
+
+# Alle Tests inklusive Live-API-Prüfungen
+PYTHONPATH=src pytest tests/
+```
+
+---
+
 ## Changelog
 
 Siehe [CHANGELOG.md](CHANGELOG.md)
+
+---
+
+## Mitwirken
+
+Siehe [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
 
 ## Lizenz
 
 MIT-Lizenz — siehe [LICENSE](LICENSE)
 
+---
+
 ## Autor
 
-malkreide · [GitHub](https://github.com/malkreide)
+malkreide · [github.com/malkreide](https://github.com/malkreide)
 
 ---
 
-*Teil eines MCP-Server-Portfolios für den öffentlichen Sektor der Schweiz. Modell-agnostisch: funktioniert mit Claude, GPT, Ollama und jedem MCP-kompatiblen Client.*
+## Credits & Verwandte Projekte
+
+- **Daten:** [opendata.swiss / BLV](https://opendata.swiss/de/organization/bundesamt-fur-lebensmittelsicherheit-und-veterinaerwesen-blv) – Bundesamt für Lebensmittelsicherheit und Veterinärwesen (BLV)
+- **Protokoll:** [Model Context Protocol](https://modelcontextprotocol.io/) – Anthropic / Linux Foundation
+- **Verwandt:** [zurich-opendata-mcp](https://github.com/malkreide/zurich-opendata-mcp) – MCP-Server für Zürcher Stadtdaten
+- **Portfolio:** [Swiss Public Data MCP Portfolio](https://github.com/malkreide)
