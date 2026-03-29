@@ -10,26 +10,22 @@ Run with: uv run pytest tests/ -v
 from __future__ import annotations
 
 import json
-import xml.etree.ElementTree as ET
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from swiss_food_safety_mcp.server import (
+    BLV_ORG_ID,
     _ckan_resource_url,
     blv_get_antibiotic_usage_vet,
-    blv_get_animal_health_stats,
-    blv_get_avian_influenza,
     blv_get_dataset_info,
     blv_get_food_control_results,
     blv_get_meat_inspection_stats,
-    blv_get_nutrition_data_children,
     blv_get_public_warnings,
     blv_list_datasets,
     blv_search_animal_diseases,
     blv_search_pesticide_products,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / mock helpers
@@ -63,8 +59,18 @@ CKAN_SEARCH_SAMPLE = {
                 "title": {"de": "Tierseuchen in der Schweiz"},
                 "notes": {"de": "Meldepflichtige Tierseuchen seit 1991."},
                 "resources": [
-                    {"format": "CSV", "url": "https://example.com/tierseuchen.csv", "name": "CSV", "description": ""},
-                    {"format": "JSON", "url": "https://example.com/tierseuchen.json", "name": "JSON", "description": ""},
+                    {
+                        "format": "CSV",
+                        "url": "https://example.com/tierseuchen.csv",
+                        "name": "CSV",
+                        "description": "",
+                    },
+                    {
+                        "format": "JSON",
+                        "url": "https://example.com/tierseuchen.json",
+                        "name": "JSON",
+                        "description": "",
+                    },
                 ],
             },
             {
@@ -72,7 +78,12 @@ CKAN_SEARCH_SAMPLE = {
                 "title": {"de": "Vogelgrippe Wildvögel"},
                 "notes": {"de": "Vogelgrippe-Überwachung."},
                 "resources": [
-                    {"format": "JSON", "url": "https://example.com/vogelgrippe.json", "name": "JSON", "description": ""},
+                    {
+                        "format": "JSON",
+                        "url": "https://example.com/vogelgrippe.json",
+                        "name": "JSON",
+                        "description": "",
+                    },
                 ],
             },
         ],
@@ -88,13 +99,25 @@ CKAN_PACKAGE_SAMPLE = {
         "organization": {"name": BLV_ORG_ID},
         "license_title": "Creative Commons Attribution",
         "resources": [
-            {"name": "CSV", "format": "CSV", "url": "https://example.com/tierseuchen.csv", "description": ""},
-            {"name": "JSON", "format": "JSON", "url": "https://example.com/tierseuchen.json", "description": ""},
+            {
+                "name": "CSV",
+                "format": "CSV",
+                "url": "https://example.com/tierseuchen.csv",
+                "description": "",
+            },
+            {
+                "name": "JSON",
+                "format": "JSON",
+                "url": "https://example.com/tierseuchen.json",
+                "description": "",
+            },
         ],
     },
 }
 
-CSV_SAMPLE = "Jahr,Kanton,Seuche,Faelle\n2024,ZH,Maul- und Klauenseuche,0\n2023,BE,Blauzungenkrankheit,3\n"
+CSV_SAMPLE = (
+    "Jahr,Kanton,Seuche,Faelle\n2024,ZH,Maul- und Klauenseuche,0\n2023,BE,Blauzungenkrankheit,3\n"
+)
 
 SPARQL_SAMPLE = {
     "results": {
@@ -280,12 +303,23 @@ async def test_blv_search_animal_diseases_sparql_success():
 async def test_blv_search_pesticide_products_xml_kupfer():
     with (
         patch("swiss_food_safety_mcp.server._get", new_callable=AsyncMock) as mock_get,
-        patch("swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock) as mock_list,
-        patch("swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock) as mock_info,
+        patch(
+            "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
+        ) as mock_list,
+        patch(
+            "swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock
+        ) as mock_info,
     ):
         mock_list.return_value = [{"name": "blv-pflanzenschutz"}]
         mock_info.return_value = {
-            "resources": [{"format": "XML", "url": "https://example.com/pestizide.xml", "name": "XML", "description": ""}]
+            "resources": [
+                {
+                    "format": "XML",
+                    "url": "https://example.com/pestizide.xml",
+                    "name": "XML",
+                    "description": "",
+                }
+            ]
         }
         mock_get.return_value = _mock_response(PESTICIDE_XML)
         result = await blv_search_pesticide_products(active_ingredient="Kupfer")
@@ -299,12 +333,23 @@ async def test_blv_search_pesticide_products_xml_kupfer():
 async def test_blv_search_pesticide_products_status_filter():
     with (
         patch("swiss_food_safety_mcp.server._get", new_callable=AsyncMock) as mock_get,
-        patch("swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock) as mock_list,
-        patch("swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock) as mock_info,
+        patch(
+            "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
+        ) as mock_list,
+        patch(
+            "swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock
+        ) as mock_info,
     ):
         mock_list.return_value = [{"name": "blv-pflanzenschutz"}]
         mock_info.return_value = {
-            "resources": [{"format": "XML", "url": "https://example.com/pestizide.xml", "name": "XML", "description": ""}]
+            "resources": [
+                {
+                    "format": "XML",
+                    "url": "https://example.com/pestizide.xml",
+                    "name": "XML",
+                    "description": "",
+                }
+            ]
         }
         mock_get.return_value = _mock_response(PESTICIDE_XML)
         result = await blv_search_pesticide_products(status="widerrufen")
@@ -320,13 +365,24 @@ async def test_blv_search_pesticide_products_status_filter():
 @pytest.mark.asyncio
 async def test_blv_get_food_control_results_filters_by_canton():
     with (
-        patch("swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock) as mock_list,
-        patch("swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock) as mock_info,
+        patch(
+            "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
+        ) as mock_list,
+        patch(
+            "swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock
+        ) as mock_info,
         patch("swiss_food_safety_mcp.server._fetch_csv", new_callable=AsyncMock) as mock_csv,
     ):
         mock_list.return_value = [{"name": "blv-lebensmittelkontrolle"}]
         mock_info.return_value = {
-            "resources": [{"format": "CSV", "url": "https://example.com/kontrolle.csv", "name": "CSV", "description": ""}]
+            "resources": [
+                {
+                    "format": "CSV",
+                    "url": "https://example.com/kontrolle.csv",
+                    "name": "CSV",
+                    "description": "",
+                }
+            ]
         }
         mock_csv.return_value = [
             {"Kanton": "ZH", "Jahr": "2023", "Inspektionen": "1200", "Beanstandungen": "120"},
@@ -345,13 +401,24 @@ async def test_blv_get_food_control_results_filters_by_canton():
 @pytest.mark.asyncio
 async def test_blv_get_antibiotic_usage_vet_year_filter():
     with (
-        patch("swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock) as mock_list,
-        patch("swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock) as mock_info,
+        patch(
+            "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
+        ) as mock_list,
+        patch(
+            "swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock
+        ) as mock_info,
         patch("swiss_food_safety_mcp.server._fetch_csv", new_callable=AsyncMock) as mock_csv,
     ):
         mock_list.return_value = [{"name": "blv-isabv"}]
         mock_info.return_value = {
-            "resources": [{"format": "CSV", "url": "https://example.com/isabv.csv", "name": "CSV", "description": ""}]
+            "resources": [
+                {
+                    "format": "CSV",
+                    "url": "https://example.com/isabv.csv",
+                    "name": "CSV",
+                    "description": "",
+                }
+            ]
         }
         mock_csv.return_value = [
             {"Jahr": "2022", "Tierart": "Rind", "Klasse": "Penicilline", "Menge_kg": "12.5"},
@@ -370,17 +437,33 @@ async def test_blv_get_antibiotic_usage_vet_year_filter():
 @pytest.mark.asyncio
 async def test_blv_get_meat_inspection_stats_returns_list():
     with (
-        patch("swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock) as mock_list,
-        patch("swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock) as mock_info,
+        patch(
+            "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
+        ) as mock_list,
+        patch(
+            "swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock
+        ) as mock_info,
         patch("swiss_food_safety_mcp.server._fetch_csv", new_callable=AsyncMock) as mock_csv,
     ):
         mock_list.return_value = [{"name": "blv-fleischuntersuchung"}]
         mock_info.return_value = {
-            "resources": [{"format": "CSV", "url": "https://example.com/fleisch.csv", "name": "CSV", "description": ""}]
+            "resources": [
+                {
+                    "format": "CSV",
+                    "url": "https://example.com/fleisch.csv",
+                    "name": "CSV",
+                    "description": "",
+                }
+            ]
         }
         mock_csv.return_value = [
             {"Jahr": "2023", "Tierart": "Rind", "Geschlachtet": "300000", "Beanstandet": "1200"},
-            {"Jahr": "2023", "Tierart": "Schwein", "Geschlachtet": "2500000", "Beanstandet": "5000"},
+            {
+                "Jahr": "2023",
+                "Tierart": "Schwein",
+                "Geschlachtet": "2500000",
+                "Beanstandet": "5000",
+            },
         ]
         result = await blv_get_meat_inspection_stats(year=2023)
 
@@ -395,7 +478,9 @@ async def test_blv_get_meat_inspection_stats_returns_list():
 
 @pytest.mark.asyncio
 async def test_blv_get_food_control_results_no_dataset():
-    with patch("swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock) as mock_list:
+    with patch(
+        "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
+    ) as mock_list:
         mock_list.return_value = []
         result = await blv_get_food_control_results()
 
@@ -405,7 +490,9 @@ async def test_blv_get_food_control_results_no_dataset():
 
 @pytest.mark.asyncio
 async def test_blv_get_antibiotic_usage_no_dataset():
-    with patch("swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock) as mock_list:
+    with patch(
+        "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
+    ) as mock_list:
         mock_list.return_value = []
         result = await blv_get_antibiotic_usage_vet()
 
