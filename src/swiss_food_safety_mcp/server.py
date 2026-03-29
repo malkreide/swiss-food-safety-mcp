@@ -15,8 +15,6 @@ from __future__ import annotations
 import argparse
 import csv
 import io
-import json
-import sys
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -504,7 +502,9 @@ async def blv_search_pesticide_products(
             # Filters
             if product_name and product_name.lower() not in name.lower():
                 continue
-            if active_ingredient and not any(active_ingredient.lower() in ai.lower() for ai in ingredients):
+            if active_ingredient and not any(
+                active_ingredient.lower() in ai.lower() for ai in ingredients
+            ):
                 continue
             if status and status.lower() not in prod_status.lower():
                 continue
@@ -634,9 +634,7 @@ def prompt_animal_disease_report(canton: str = "ZH", year: int = 2024) -> str:
 
 def main() -> None:
     """CLI entry point — supports stdio (default) and --http (Streamable HTTP)."""
-    parser = argparse.ArgumentParser(
-        description="swiss-food-safety-mcp: BLV open data MCP server"
-    )
+    parser = argparse.ArgumentParser(description="swiss-food-safety-mcp: BLV open data MCP server")
     parser.add_argument(
         "--http",
         action="store_true",
