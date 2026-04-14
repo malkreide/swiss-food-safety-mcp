@@ -26,6 +26,10 @@ Dieser Server folgt der **No-Auth-First**-Philosophie und ist Teil eines MCP-Ser
 
 **Anker-Demo-Abfrage:** *«Gibt es aktuelle BLV-Lebensmittelwarnungen, die für Zürcher Schulküchen relevant sein könnten – und welche Tierseuchen sind derzeit im Kanton Zürich gemeldet?»*
 
+### Demo
+
+![Demo: Claude nutzt blv_get_public_warnings und blv_search_animal_diseases](docs/assets/demo.svg)
+
 ---
 
 ## Funktionen
@@ -228,6 +232,17 @@ Alle Daten sind Open Government Data (OGD) unter Creative Commons mit Quellenang
 - **Pflanzenschutzmittelverzeichnis:** XML-Parsing kann bei grossen Ergebnismengen langsam sein
 - **CKAN-Datensätze:** Opendata.swiss-Ratenlimits gelten bei intensiver Nutzung
 - **Tierseuchendaten:** Kantonsfilterung abhängig von der Datenvollständigkeit in der Quelle
+
+---
+
+## Sicherheit & Grenzen
+
+- **Nur lesend:** Alle Werkzeuge führen ausschliesslich HTTP-GET-Anfragen aus — es werden keine Daten geschrieben, verändert oder gelöscht.
+- **Keine Personendaten:** Die APIs liefern aggregierte Statistiken zur öffentlichen Gesundheit und Lebensmittelsicherheit. Es werden keine personenbezogenen Daten verarbeitet oder gespeichert.
+- **Ratenlimits:** opendata.swiss CKAN und lindas.admin.ch SPARQL sind öffentliche APIs; `limit`- und Filterparameter massvoll verwenden. Der Server erzwingt ein 30-Sekunden-Timeout pro Anfrage.
+- **Datenaktualität:** RSS-Warnungen spiegeln die neuesten BLV-Publikationen zum Abfragezeitpunkt wider. Statistische Datensätze (Tierseuchen, Lebensmittelkontrollen, Antibiotika) werden periodisch vom BLV aktualisiert. Der Server führt kein Caching durch.
+- **Nutzungsbedingungen:** Die Daten unterliegen den Nutzungsbedingungen der jeweiligen Quellen — [opendata.swiss](https://opendata.swiss/de/terms-of-use), [lindas.admin.ch](https://lindas.admin.ch), [news.admin.ch](https://www.admin.ch/gov/de/start/rechtliches.html). BLV-Daten sind unter Creative Commons mit Quellenangabe veröffentlicht.
+- **Keine Garantien:** Dieser Server ist ein Community-Projekt, nicht affiliiert mit dem BLV oder der Schweizerischen Bundesverwaltung. Verfügbarkeit abhängig von den Upstream-APIs.
 
 ---
 

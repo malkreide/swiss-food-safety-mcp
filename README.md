@@ -26,6 +26,10 @@ This server follows the **No-Auth-First** philosophy and is part of a Swiss publ
 
 **Anchor demo query:** *"Are there any current BLV food warnings relevant to Zurich school canteens — and which notifiable animal diseases are currently reported in the canton?"*
 
+### Demo
+
+![Demo: Claude using blv_get_public_warnings and blv_search_animal_diseases](docs/assets/demo.svg)
+
 ---
 
 ## Features
@@ -228,6 +232,17 @@ All data is open government data (OGD) under Creative Commons with attribution r
 - **Pesticide register:** XML parsing may be slow for queries returning large result sets
 - **CKAN datasets:** Opendata.swiss rate limits apply under heavy usage
 - **Animal disease data:** Canton-level filtering depends on data completeness in the source
+
+---
+
+## Safety & Limits
+
+- **Read-only:** All tools perform HTTP GET requests only — no data is written, modified, or deleted.
+- **No personal data:** The APIs return aggregated public health and food safety statistics. No personally identifiable information is processed or stored by this server.
+- **Rate limits:** opendata.swiss CKAN and lindas.admin.ch SPARQL are public APIs; use `limit` and filtering parameters conservatively. The server enforces a 30-second timeout per request.
+- **Data freshness:** RSS warnings reflect the latest BLV publications at query time. Statistical datasets (animal diseases, food control, antibiotics) are updated periodically by the BLV. No caching is performed by this server.
+- **Terms of service:** Data is subject to the ToS of each source — [opendata.swiss](https://opendata.swiss/de/terms-of-use), [lindas.admin.ch](https://lindas.admin.ch), [news.admin.ch](https://www.admin.ch/gov/de/start/rechtliches.html). BLV data is published under Creative Commons with attribution.
+- **No guarantees:** This server is a community project, not affiliated with the BLV or the Swiss federal administration. Availability depends on upstream APIs.
 
 ---
 
