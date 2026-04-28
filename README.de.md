@@ -29,6 +29,7 @@ Dieser Server folgt der **No-Auth-First**-Philosophie und ist Teil eines MCP-Ser
 ### Demo
 
 ![Demo: Claude nutzt blv_get_public_warnings und blv_search_animal_diseases](docs/assets/demo.svg)
+[→ Weitere Anwendungsbeispiele nach Zielgruppe →](EXAMPLES.md)
 
 ---
 

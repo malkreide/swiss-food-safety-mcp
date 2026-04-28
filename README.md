@@ -29,6 +29,7 @@ This server follows the **No-Auth-First** philosophy and is part of a Swiss publ
 ### Demo
 
 ![Demo: Claude using blv_get_public_warnings and blv_search_animal_diseases](docs/assets/demo.svg)
+[→ More use cases by audience →](EXAMPLES.md)
 
 ---
 
