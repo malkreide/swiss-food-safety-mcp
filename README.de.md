@@ -146,10 +146,13 @@ swiss-food-safety-mcp --http --host 0.0.0.0
 ```bash
 docker build -t swiss-food-safety-mcp .
 docker run -p 8002:8002 swiss-food-safety-mcp
+# oder mit expliziten CPU-/Speicher-Limiten:
+docker compose up
 ```
 
 Das Image ist ein mehrstufiger Build ohne Root-Rechte; der Container bindet
-bereits `0.0.0.0` und enthält einen Healthcheck.
+bereits `0.0.0.0` und enthält einen Healthcheck. `docker-compose.yml` begrenzt
+zusätzlich CPU und Arbeitsspeicher.
 
 > 💡 *«stdio für den Entwickler-Laptop, Streamable HTTP für den Browser.»*
 
@@ -271,6 +274,21 @@ Alle Daten sind Open Government Data (OGD) unter Creative Commons mit Quellenang
 - **Datenaktualität:** RSS-Warnungen spiegeln die neuesten BLV-Publikationen zum Abfragezeitpunkt wider. Statistische Datensätze (Tierseuchen, Lebensmittelkontrollen, Antibiotika) werden periodisch vom BLV aktualisiert. Der Server führt kein Caching durch.
 - **Nutzungsbedingungen:** Die Daten unterliegen den Nutzungsbedingungen der jeweiligen Quellen — [opendata.swiss](https://opendata.swiss/de/terms-of-use), [lindas.admin.ch](https://lindas.admin.ch), [news.admin.ch](https://www.admin.ch/gov/de/start/rechtliches.html). BLV-Daten sind unter Creative Commons mit Quellenangabe veröffentlicht.
 - **Keine Garantien:** Dieser Server ist ein Community-Projekt, nicht affiliiert mit dem BLV oder der Schweizerischen Bundesverwaltung. Verfügbarkeit abhängig von den Upstream-APIs.
+
+---
+
+## Deployment & Skalierung
+
+Dieser Server befindet sich in **Phase 1 — read-only** (siehe
+[`ROADMAP.md`](ROADMAP.md)): alle 11 Werkzeuge sind reine Lesezugriffe ohne
+Schreib-Schnittstelle.
+
+Er ist als **Einzelinstanz** zu betreiben. Der Streamable-HTTP-Transport hält
+Sitzungs-Zustand, daher würde horizontale Skalierung `Mcp-Session-Id`-basiertes
+Sticky-Routing am Load Balancer sowie einen geteilten Session-Store erfordern —
+beides ist für einen Server dieses Umfangs bewusst nicht implementiert. Eine
+einzelne Render-Instanz (oder ein Container) ist das unterstützte Deployment;
+`docker-compose.yml` setzt explizite CPU-/Speicher-Limiten für den Eigenbetrieb.
 
 ---
 

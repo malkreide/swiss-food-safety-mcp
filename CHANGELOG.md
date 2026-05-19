@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (audit finding OPS-001).
 - `render.yaml` Render Blueprint for reproducible cloud deployment (SCALE-001).
 - Dependabot configuration for weekly dependency updates (ARCH-012).
+- `ROADMAP.md` declaring the read-only Phase 1 architecture and the
+  single-instance scaling constraint (audit findings OPS-003, SCALE-002,
+  SCALE-003).
+- `docker-compose.yml` with explicit CPU/memory limits for self-hosted
+  deployment (audit finding SCALE-006).
 
 ### Changed
 - Configuration moved to a `pydantic-settings` `Settings` object; all settings
