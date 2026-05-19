@@ -155,8 +155,11 @@ bereits `0.0.0.0` und enthält einen Healthcheck.
 
 > 🔧 **Konfiguration** — alle Laufzeit-Einstellungen sind über `BLV_MCP_*`-
 > Umgebungsvariablen überschreibbar (`BLV_MCP_HTTP_HOST`, `BLV_MCP_HTTP_PORT`,
-> `BLV_MCP_ALLOWED_ORIGINS`, `BLV_MCP_TIMEOUT`, …). Ausgehende Anfragen sind
-> auf Schweizer Bundes-Hosts beschränkt (`*.admin.ch`, `opendata.swiss`).
+> `BLV_MCP_ALLOWED_ORIGINS`, `BLV_MCP_TIMEOUT`, `BLV_MCP_OTEL_ENDPOINT`, …).
+> Ausgehende Anfragen sind auf Schweizer Bundes-Hosts beschränkt
+> (`*.admin.ch`, `opendata.swiss`). Optionales OpenTelemetry-Tracing:
+> Installation mit `pip install swiss-food-safety-mcp[otel]` und
+> `BLV_MCP_OTEL_ENDPOINT` setzen.
 
 ---
 

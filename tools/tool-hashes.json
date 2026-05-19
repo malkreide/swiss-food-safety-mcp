@@ -1,0 +1,16 @@
+{
+  "sha256": "cef3b2c25c71d4126fecd0dd59ae7b1fa95138b38b6c72d11f4c0bba7c9c86f8",
+  "tools": [
+    "blv_get_animal_health_stats",
+    "blv_get_antibiotic_usage_vet",
+    "blv_get_avian_influenza",
+    "blv_get_dataset_info",
+    "blv_get_food_control_results",
+    "blv_get_meat_inspection_stats",
+    "blv_get_nutrition_data_children",
+    "blv_get_public_warnings",
+    "blv_list_datasets",
+    "blv_search_animal_diseases",
+    "blv_search_pesticide_products"
+  ]
+}

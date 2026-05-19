@@ -1,0 +1,12 @@
+# Render Blueprint — reproducible cloud deployment (audit finding SCALE-001).
+# The Docker image already binds 0.0.0.0 and runs as a non-root user.
+services:
+  - type: web
+    name: swiss-food-safety-mcp
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: BLV_MCP_ALLOWED_ORIGINS
+        value: https://claude.ai

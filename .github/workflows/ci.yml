@@ -41,9 +41,15 @@ jobs:
         env:
           PYTHONPATH: src
 
+      - name: Tool-Definition-Hash-Prüfung
+        if: matrix.python-version == '3.11'
+        run: python tools/tool_manifest.py --check
+        env:
+          PYTHONPATH: src
+
       - name: Unit-Tests (nur Python 3.11)
         if: matrix.python-version == '3.11'
-        run: pytest tests/ -v
+        run: pytest tests/ -v -m "not live"
         env:
           PYTHONPATH: src
         timeout-minutes: 5
