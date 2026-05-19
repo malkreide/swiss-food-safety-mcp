@@ -15,11 +15,14 @@ from __future__ import annotations
 import argparse
 import csv
 import io
-import xml.etree.ElementTree as ET
+import os
 from typing import Any
 
+import defusedxml.ElementTree as ET
 import httpx
 from fastmcp import FastMCP
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -30,6 +33,7 @@ BLV_ORG_ID = "bundesamt-fur-lebensmittelsicherheit-und-veterinaerwesen-blv"
 SPARQL_ENDPOINT = "https://lindas.admin.ch/sparql"
 BLV_RSS = "https://www.newsd.admin.ch/newsd/feeds/rss?lang=de&org-nr=1079"
 TIMEOUT = 20.0
+MAX_RESULTS = 200
 
 # ---------------------------------------------------------------------------
 # FastMCP app
@@ -37,6 +41,7 @@ TIMEOUT = 20.0
 
 mcp = FastMCP(
     name="swiss-food-safety-mcp",
+    mask_error_details=True,
     instructions=(
         "Tools for Swiss Federal Food Safety and Veterinary Office (BLV) open data. "
         "Covers food recalls, animal disease surveillance, food control results, "
@@ -71,6 +76,18 @@ async def _fetch_csv(url: str) -> list[dict]:
     r.raise_for_status()
     reader = csv.DictReader(io.StringIO(r.text))
     return list(reader)
+
+
+def _sparql_escape(value: str) -> str:
+    """Escape a string for safe inclusion inside a SPARQL string literal."""
+    return (
+        value.replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +143,7 @@ async def blv_list_datasets(
     Returns:
         List of dataset summaries with name, title, notes, num_resources.
     """
+    limit = max(1, min(limit, 100))
     params: dict[str, Any] = {
         "fq": f"organization:{BLV_ORG_ID}",
         "rows": limit,
@@ -216,6 +234,10 @@ async def blv_search_animal_diseases(
     Returns:
         List of disease case records with year, canton, disease, count.
     """
+    limit = max(1, min(limit, MAX_RESULTS))
+    canton_esc = _sparql_escape(canton)
+    disease_esc = _sparql_escape(disease)
+
     sparql_query = f"""
     PREFIX schema: <http://schema.org/>
     PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
@@ -227,8 +249,8 @@ async def blv_search_animal_diseases(
               schema:name ?disease ;
               schema:value ?cases .
       FILTER(?year >= {year_from} && ?year <= {year_to})
-      {"FILTER(CONTAINS(STR(?canton), '" + canton + "'))" if canton else ""}
-      {"FILTER(CONTAINS(LCASE(STR(?disease)), LCASE('" + disease + "')))" if disease else ""}
+      {"FILTER(CONTAINS(STR(?canton), '" + canton_esc + "'))" if canton else ""}
+      {"FILTER(CONTAINS(LCASE(STR(?disease)), LCASE('" + disease_esc + "')))" if disease else ""}
     }}
     ORDER BY DESC(?year) ?canton
     LIMIT {limit}
@@ -317,6 +339,7 @@ async def blv_get_food_control_results(
     Returns:
         List of inspection result records with canton, year, inspections, violations.
     """
+    limit = max(1, min(limit, MAX_RESULTS))
     datasets = await blv_list_datasets(search="lebensmittelkontrolle kantone")
     if not datasets:
         return [{"error": "No matching dataset found"}]
@@ -479,6 +502,7 @@ async def blv_search_pesticide_products(
     Returns:
         Pesticide product records with name, authorization number, active ingredients, status.
     """
+    limit = max(1, min(limit, MAX_RESULTS))
     datasets = await blv_list_datasets(search="pflanzenschutzmittel pestizid register")
     if not datasets:
         return [{"error": "No matching dataset found"}]
@@ -641,11 +665,39 @@ def main() -> None:
         help="Run as Streamable HTTP server on port 8002 (for cloud/Render.com)",
     )
     parser.add_argument("--port", type=int, default=8002, help="HTTP port (default: 8002)")
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="HTTP host (default: 0.0.0.0)")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help=(
+            "HTTP bind address (default: 127.0.0.1, loopback only). "
+            "Set explicitly to 0.0.0.0 only when external exposure is intended "
+            "(e.g. behind the Render.com TLS proxy)."
+        ),
+    )
     args = parser.parse_args()
 
     if args.http:
-        mcp.run(transport="streamable-http", host=args.host, port=args.port)
+        # CORS: browser MCP clients need Mcp-Session-Id exposed. Origins are
+        # explicit (no wildcard) via ALLOWED_ORIGINS (comma-separated).
+        allowed_origins = [
+            o.strip()
+            for o in os.environ.get("ALLOWED_ORIGINS", "https://claude.ai").split(",")
+            if o.strip()
+        ]
+        cors = Middleware(
+            CORSMiddleware,
+            allow_origins=allowed_origins,
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=["*"],
+            expose_headers=["Mcp-Session-Id"],
+        )
+        mcp.run(
+            transport="streamable-http",
+            host=args.host,
+            port=args.port,
+            middleware=[cors],
+        )
     else:
         mcp.run(transport="stdio")
 

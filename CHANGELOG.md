@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- HTTP transport now binds to `127.0.0.1` by default instead of `0.0.0.0`;
+  external exposure requires an explicit `--host 0.0.0.0` (audit finding SEC-016).
+- `blv_search_animal_diseases` escapes caller-supplied `canton`/`disease` values
+  before SPARQL interpolation, preventing query injection (SEC-018).
+- XML feeds are parsed with `defusedxml` instead of the standard library,
+  mitigating XML entity-expansion attacks (SEC-018).
+- Result-limit parameters are clamped to documented maximums (SEC-018).
+- Error details are masked toward the model via `mask_error_details` (OBS-002).
+
+### Added
+- CORS configuration for the HTTP transport exposing the `Mcp-Session-Id`
+  header, with an explicit `ALLOWED_ORIGINS` env var (audit finding SDK-004).
+
 ## [1.0.0] - 2026-03-12
 
 ### Added

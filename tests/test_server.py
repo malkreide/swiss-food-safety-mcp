@@ -17,6 +17,7 @@ import pytest
 from swiss_food_safety_mcp.server import (
     BLV_ORG_ID,
     _ckan_resource_url,
+    _sparql_escape,
     blv_get_antibiotic_usage_vet,
     blv_get_dataset_info,
     blv_get_food_control_results,
@@ -497,3 +498,43 @@ async def test_blv_get_antibiotic_usage_no_dataset():
         result = await blv_get_antibiotic_usage_vet()
 
     assert result[0].get("error") is not None
+
+
+# ---------------------------------------------------------------------------
+# Tests: SPARQL injection hardening (_sparql_escape)
+# ---------------------------------------------------------------------------
+
+
+def test_sparql_escape_neutralizes_quotes_and_backslashes():
+    assert _sparql_escape("ZH") == "ZH"
+    assert _sparql_escape("a'b") == "a\\'b"
+    assert _sparql_escape("a\\b") == "a\\\\b"
+    assert _sparql_escape('a"b') == 'a\\"b'
+    assert "\n" not in _sparql_escape("a\nb")
+
+
+@pytest.mark.asyncio
+async def test_blv_search_animal_diseases_escapes_injection_payload():
+    payload = "x') } INJECT {"
+    with patch("swiss_food_safety_mcp.server._get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = _mock_response(SPARQL_SAMPLE)
+        await blv_search_animal_diseases(disease=payload)
+
+    sent_query = mock_get.call_args.kwargs["params"]["query"]
+    # The raw closing-quote payload must not appear unescaped in the query.
+    assert "x') }" not in sent_query
+    assert "x\\') }" in sent_query
+
+
+# ---------------------------------------------------------------------------
+# Tests: result-limit clamping
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_blv_list_datasets_clamps_excessive_limit():
+    with patch("swiss_food_safety_mcp.server._get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = _mock_response(CKAN_SEARCH_SAMPLE)
+        await blv_list_datasets(limit=9999)
+
+    assert mock_get.call_args.kwargs["params"]["rows"] == 100
