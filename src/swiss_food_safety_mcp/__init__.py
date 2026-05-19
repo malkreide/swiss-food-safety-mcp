@@ -12,7 +12,7 @@ Part of the Swiss public sector MCP server portfolio.
 Model-agnostic: works with Claude, GPT, Ollama, and any MCP-compatible client.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "malkreide"
 __license__ = "MIT"
 

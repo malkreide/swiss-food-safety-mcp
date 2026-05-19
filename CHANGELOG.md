@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-19
+
+Hardening release — resolves the `mcp-audit-skill` audit findings (see
+`docs/audit/`). 26 of 31 findings closed across four remediation gates; no
+high-severity finding remains open.
+
 ### Security
 - HTTP transport now binds to `127.0.0.1` by default instead of `0.0.0.0`;
   external exposure requires an explicit `--host 0.0.0.0` (audit finding SEC-016).

@@ -32,7 +32,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.0"
 
 # ---------------------------------------------------------------------------
 # Logging — to stderr only; stdout is reserved for the MCP protocol (OBS-003)
