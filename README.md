@@ -146,10 +146,13 @@ swiss-food-safety-mcp --http --host 0.0.0.0
 ```bash
 docker build -t swiss-food-safety-mcp .
 docker run -p 8002:8002 swiss-food-safety-mcp
+# or, with explicit CPU/memory limits:
+docker compose up
 ```
 
 The image is a non-root, multi-stage build; the container already binds
-`0.0.0.0` and includes a healthcheck.
+`0.0.0.0` and includes a healthcheck. `docker-compose.yml` additionally caps
+CPU and memory.
 
 > 💡 *"stdio for the developer laptop, Streamable HTTP for the browser."*
 
@@ -270,6 +273,20 @@ All data is open government data (OGD) under Creative Commons with attribution r
 - **Data freshness:** RSS warnings reflect the latest BLV publications at query time. Statistical datasets (animal diseases, food control, antibiotics) are updated periodically by the BLV. No caching is performed by this server.
 - **Terms of service:** Data is subject to the ToS of each source — [opendata.swiss](https://opendata.swiss/de/terms-of-use), [lindas.admin.ch](https://lindas.admin.ch), [news.admin.ch](https://www.admin.ch/gov/de/start/rechtliches.html). BLV data is published under Creative Commons with attribution.
 - **No guarantees:** This server is a community project, not affiliated with the BLV or the Swiss federal administration. Availability depends on upstream APIs.
+
+---
+
+## Deployment & Scaling
+
+This server is **Phase 1 — read-only** (see [`ROADMAP.md`](ROADMAP.md)): all
+11 tools are read-only queries with no write surface.
+
+Run it as a **single instance**. The Streamable HTTP transport keeps
+per-session state, so horizontal scaling would require `Mcp-Session-Id` sticky
+routing at the load balancer plus a shared session store — neither is
+implemented, by design, for a server of this scope. A single Render instance
+(or one container) is the supported deployment; `docker-compose.yml` sets
+explicit CPU/memory limits for self-hosting.
 
 ---
 

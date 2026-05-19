@@ -1,0 +1,18 @@
+# Local / self-hosted deployment with explicit resource limits (SCALE-006).
+# The image binds 0.0.0.0 and ships a healthcheck (see Dockerfile).
+services:
+  swiss-food-safety-mcp:
+    build: .
+    image: swiss-food-safety-mcp
+    ports:
+      - "8002:8002"
+    environment:
+      BLV_MCP_ALLOWED_ORIGINS: "https://claude.ai"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          memory: 64M
+    restart: unless-stopped
