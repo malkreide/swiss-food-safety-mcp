@@ -5,14 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-03-23
-
-### Added
-- Initial release
-- 11 tools covering BLV food safety open data
-- Dual transport: stdio + Streamable HTTP
-- Bilingual documentation (EN/DE)
-
 ## [Unreleased]
 
 ### Security
@@ -27,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Outbound requests are SSRF-guarded: HTTPS-only, restricted to an immutable
   egress allow-list of Swiss federal hosts, with public-IP and redirect-target
   validation (audit findings SEC-004, SEC-005, SEC-021).
+- CI verifies a SHA-256 hash of the tool definitions against a committed
+  baseline, detecting unintended tool-definition changes (SEC-022).
 
 ### Added
 - CORS configuration for the HTTP transport exposing the `Mcp-Session-Id`
@@ -34,14 +28,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All tools now carry MCP annotations (`readOnlyHint`, `idempotentHint`,
   `openWorldHint`) (audit finding ARCH-009).
 - Multi-stage, non-root `Dockerfile` with a healthcheck (SEC-007, SCALE-004).
+- Structured logging to stderr (audit finding OBS-003).
+- Optional OpenTelemetry tracing, enabled via `BLV_MCP_OTEL_ENDPOINT` and the
+  `otel` install extra (audit finding OBS-006).
+- Provenance attribution (`source` / `license`) on structured tool results
+  (audit finding CH-004).
+- A `live` pytest marker for tests that hit live APIs, excluded from CI
+  (audit finding OPS-001).
+- `render.yaml` Render Blueprint for reproducible cloud deployment (SCALE-001).
+- Dependabot configuration for weekly dependency updates (ARCH-012).
 
 ### Changed
 - Configuration moved to a `pydantic-settings` `Settings` object; all settings
   are overridable via `BLV_MCP_*` environment variables (audit finding ARCH-004).
 - The HTTP client is now created once via a FastMCP lifespan and pooled across
   requests instead of being recreated per call (audit finding SDK-001).
+- Structured tool results use typed shapes (`TypedDict`); tools accept an
+  optional `Context` for progress reporting and logging (SDK-002, SDK-003).
+- Execution errors now carry a stable `code` and a remediation `note`
+  (audit findings OBS-001, ARCH-003).
+- The `fastmcp` dependency is pinned to `>=3.0.0,<4.0.0` (ARCH-012).
 
-## [1.0.0] - 2026-03-12
+## [1.0.0] - 2026-03-23
 
 ### Added
 - Initial release

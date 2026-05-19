@@ -17,17 +17,34 @@ import asyncio
 import csv
 import io
 import ipaddress
+import logging
 import socket
+import sys
 from contextlib import asynccontextmanager
 from typing import Any
 from urllib.parse import urlparse
 
 import defusedxml.ElementTree as ET
 import httpx
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
+from typing_extensions import TypedDict
+
+SERVER_VERSION = "1.0.0"
+
+# ---------------------------------------------------------------------------
+# Logging — to stderr only; stdout is reserved for the MCP protocol (OBS-003)
+# ---------------------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stderr,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("swiss-food-safety-mcp")
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -47,6 +64,7 @@ class Settings(BaseSettings):
     http_host: str = "127.0.0.1"
     http_port: int = 8002
     allowed_origins: str = "https://claude.ai"
+    otel_endpoint: str = ""  # OTLP/HTTP endpoint; tracing stays off when empty
 
 
 settings = Settings()
@@ -58,9 +76,114 @@ BLV_RSS = settings.blv_rss
 TIMEOUT = settings.timeout
 MAX_RESULTS = 200
 
+# CH-004: provenance attribution attached to structured tool results.
+DATA_SOURCE = "opendata.swiss / Federal Food Safety and Veterinary Office (BLV)"
+DATA_LICENSE = "CC BY 4.0"
+
 # SEC-021: immutable egress allow-list. Outbound requests may only target
 # Swiss federal open-data hosts. Intentionally a frozenset (not configurable).
 ALLOWED_EGRESS_SUFFIXES: frozenset[str] = frozenset({"admin.ch", "opendata.swiss"})
+
+# OBS-001: stable execution-error codes (distinct from raised protocol errors).
+ERR_NO_DATASET = "no_dataset"
+ERR_NO_RESOURCE = "no_resource"
+ERR_UPSTREAM = "upstream_unavailable"
+
+
+# ---------------------------------------------------------------------------
+# Typed result shapes (SDK-002)
+# ---------------------------------------------------------------------------
+
+
+class WarningItem(TypedDict):
+    """A single BLV public warning / recall."""
+
+    title: str
+    link: str
+    description: str
+    pubDate: str
+    source: str
+
+
+class DatasetSummary(TypedDict):
+    """Compact summary of a BLV open dataset."""
+
+    name: str
+    title: str
+    notes: str
+    num_resources: int
+    url: str
+    source: str
+
+
+class ResourceInfo(TypedDict):
+    """A downloadable resource of a dataset."""
+
+    name: str
+    format: str
+    url: str
+    description: str
+
+
+class DatasetInfo(TypedDict):
+    """Full metadata of a BLV open dataset."""
+
+    name: str
+    title: str
+    notes: str
+    organization: str
+    license: str
+    num_resources: int
+    resources: list[ResourceInfo]
+    source: str
+
+
+class DiseaseCase(TypedDict):
+    """A notifiable animal-disease case record."""
+
+    year: str
+    canton: str
+    disease: str
+    cases: str
+    source: str
+
+
+def _error(message: str, code: str, **extra: Any) -> dict[str, Any]:
+    """Build a structured execution-error record (OBS-001)."""
+    return {"error": message, "code": code, **extra}
+
+
+# ---------------------------------------------------------------------------
+# Observability — OpenTelemetry tracing (OBS-006, opt-in)
+# ---------------------------------------------------------------------------
+
+
+def _setup_telemetry() -> None:
+    """Enable OpenTelemetry tracing when BLV_MCP_OTEL_ENDPOINT is configured.
+
+    Tracing is an optional extra (`pip install swiss-food-safety-mcp[otel]`).
+    When the endpoint is unset, or the packages are absent, this is a no-op.
+    """
+    if not settings.otel_endpoint:
+        return
+    try:
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    except ImportError:
+        logger.warning("OpenTelemetry packages not installed; tracing disabled")
+        return
+
+    provider = TracerProvider(resource=Resource.create({"service.name": "swiss-food-safety-mcp"}))
+    provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_endpoint))
+    )
+    trace.set_tracer_provider(provider)
+    HTTPXClientInstrumentor().instrument()
+    logger.info("OpenTelemetry tracing enabled (endpoint=%s)", settings.otel_endpoint)
 
 
 # ---------------------------------------------------------------------------
@@ -104,12 +227,15 @@ async def _on_response(response: httpx.Response) -> None:
 async def _lifespan(_app: FastMCP):
     """Hold one pooled, SSRF-guarded HTTP client for the server's lifetime."""
     global _client
+    _setup_telemetry()
     async with httpx.AsyncClient(
         timeout=TIMEOUT,
         follow_redirects=True,
+        headers={"User-Agent": f"swiss-food-safety-mcp/{SERVER_VERSION}"},
         event_hooks={"response": [_on_response]},
     ) as client:
         _client = client
+        logger.info("swiss-food-safety-mcp ready (version %s)", SERVER_VERSION)
         try:
             yield
         finally:
@@ -124,12 +250,40 @@ async def _get(url: str, params: dict | None = None, headers: dict | None = None
     return await _client.get(url, params=params, headers=headers or {})
 
 
+async def _step(ctx: Context | None, done: int, total: int, message: str) -> None:
+    """Emit a progress update and a debug log line (SDK-003).
+
+    Best-effort: a no-op when there is no active MCP session (internal calls,
+    tests), and always recorded server-side via the logger regardless.
+    """
+    logger.debug(message)
+    if ctx is None:
+        return
+    try:
+        await ctx.report_progress(progress=done, total=total)
+        await ctx.debug(message)
+    except RuntimeError:
+        pass  # no active MCP session
+
+
+async def _ctx_log(ctx: Context | None, level: str, message: str) -> None:
+    """Best-effort client-facing log via the MCP context; always logs server-side."""
+    getattr(logger, level)(message)
+    if ctx is None:
+        return
+    try:
+        await getattr(ctx, level)(message)
+    except RuntimeError:
+        pass  # no active MCP session
+
+
 # ---------------------------------------------------------------------------
 # FastMCP app
 # ---------------------------------------------------------------------------
 
 mcp = FastMCP(
     name="swiss-food-safety-mcp",
+    version=SERVER_VERSION,
     mask_error_details=True,
     lifespan=_lifespan,
     instructions=(
@@ -177,27 +331,40 @@ def _sparql_escape(value: str) -> str:
     )
 
 
+async def _find_dataset(ctx: Context | None, search: str) -> str | None:
+    """Resolve a dataset slug from a keyword search, or None if nothing matches."""
+    datasets = await blv_list_datasets(search=search)
+    if not datasets:
+        await _ctx_log(ctx, "warning", f"No BLV dataset matched search '{search}'")
+        return None
+    return datasets[0]["name"]
+
+
 # ---------------------------------------------------------------------------
 # Tool 1: Public warnings & recalls
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool(annotations=READ_ONLY_TOOL)
-async def blv_get_public_warnings(limit: int = 20) -> list[dict[str, str]]:
+async def blv_get_public_warnings(limit: int = 20, ctx: Context | None = None) -> list[WarningItem]:
     """
     Current BLV food recalls and public health warnings (live RSS feed).
+
+    Use case: answer questions about food safety alerts currently active in
+    Switzerland, e.g. "which products have been recalled recently?".
 
     Args:
         limit: Maximum number of items to return (default 20, max 50).
 
     Returns:
-        List of warning items with title, link, description, pubDate.
+        List of warning items with title, link, description, pubDate, source.
     """
-    limit = min(limit, 50)
+    limit = max(1, min(limit, 50))
+    await _step(ctx, 1, 1, f"Fetching BLV warnings feed (limit={limit})")
     r = await _get(BLV_RSS)
     r.raise_for_status()
     root = ET.fromstring(r.text)
-    items = []
+    items: list[WarningItem] = []
     for item in root.findall(".//item")[:limit]:
         items.append(
             {
@@ -205,6 +372,7 @@ async def blv_get_public_warnings(limit: int = 20) -> list[dict[str, str]]:
                 "link": (item.findtext("link") or "").strip(),
                 "description": (item.findtext("description") or "").strip(),
                 "pubDate": (item.findtext("pubDate") or "").strip(),
+                "source": DATA_SOURCE,
             }
         )
     return items
@@ -219,16 +387,20 @@ async def blv_get_public_warnings(limit: int = 20) -> list[dict[str, str]]:
 async def blv_list_datasets(
     limit: int = 28,
     search: str = "",
-) -> list[dict[str, Any]]:
+    ctx: Context | None = None,
+) -> list[DatasetSummary]:
     """
     Browse all BLV open datasets on opendata.swiss (CKAN API).
+
+    Use case: discover which datasets exist before drilling into one with
+    blv_get_dataset_info, or to map a topic to a concrete dataset slug.
 
     Args:
         limit: Maximum datasets to return (default 28 = all BLV datasets).
         search: Optional keyword filter on title/notes.
 
     Returns:
-        List of dataset summaries with name, title, notes, num_resources.
+        List of dataset summaries with name, title, notes, num_resources, source.
     """
     limit = max(1, min(limit, 100))
     params: dict[str, Any] = {
@@ -239,10 +411,11 @@ async def blv_list_datasets(
     if search:
         params["q"] = search
 
+    await _step(ctx, 1, 1, f"Searching BLV datasets (search='{search}', limit={limit})")
     r = await _get(f"{CKAN_BASE}/package_search", params=params)
     r.raise_for_status()
     data = r.json()
-    results = []
+    results: list[DatasetSummary] = []
     for ds in data.get("result", {}).get("results", []):
         results.append(
             {
@@ -251,6 +424,7 @@ async def blv_list_datasets(
                 "notes": (ds.get("notes", {}).get("de", ds.get("notes", "")) or "")[:200],
                 "num_resources": len(ds.get("resources", [])),
                 "url": f"https://opendata.swiss/de/dataset/{ds.get('name', '')}",
+                "source": DATA_SOURCE,
             }
         )
     return results
@@ -262,9 +436,12 @@ async def blv_list_datasets(
 
 
 @mcp.tool(annotations=READ_ONLY_TOOL)
-async def blv_get_dataset_info(dataset_name: str) -> dict[str, Any]:
+async def blv_get_dataset_info(dataset_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Detailed metadata and resource URLs for a specific BLV dataset.
+
+    Use case: obtain the concrete download URLs and formats of a dataset found
+    via blv_list_datasets, including its open-data licence.
 
     Args:
         dataset_name: CKAN dataset name/slug (from blv_list_datasets).
@@ -275,7 +452,14 @@ async def blv_get_dataset_info(dataset_name: str) -> dict[str, Any]:
     r = await _get(f"{CKAN_BASE}/package_show", params={"id": dataset_name})
     r.raise_for_status()
     pkg = r.json().get("result", {})
-    resources = [
+    if not pkg:
+        await _ctx_log(ctx, "warning", f"Dataset '{dataset_name}' not found")
+        return _error(
+            f"Dataset '{dataset_name}' not found",
+            ERR_NO_DATASET,
+            note="Call blv_list_datasets() to see valid dataset slugs.",
+        )
+    resources: list[ResourceInfo] = [
         {
             "name": res.get("name", ""),
             "format": res.get("format", ""),
@@ -284,15 +468,17 @@ async def blv_get_dataset_info(dataset_name: str) -> dict[str, Any]:
         }
         for res in pkg.get("resources", [])
     ]
-    return {
+    result: DatasetInfo = {
         "name": pkg.get("name", ""),
         "title": pkg.get("title", {}).get("de", ""),
         "notes": pkg.get("notes", {}).get("de", ""),
         "organization": pkg.get("organization", {}).get("name", ""),
-        "license": pkg.get("license_title", ""),
+        "license": pkg.get("license_title", "") or DATA_LICENSE,
         "num_resources": len(resources),
         "resources": resources,
+        "source": DATA_SOURCE,
     }
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -307,9 +493,13 @@ async def blv_search_animal_diseases(
     year_from: int = 2020,
     year_to: int = 2024,
     limit: int = 50,
+    ctx: Context | None = None,
 ) -> list[dict[str, Any]]:
     """
     Search notifiable animal disease cases in Switzerland since 1991 (InfoSM).
+
+    Use case: report on disease occurrence by canton and year, e.g. "were there
+    avian influenza cases in Bern in 2024?".
 
     Args:
         canton: Two-letter canton abbreviation (e.g. "ZH", "BE"). Empty = all cantons.
@@ -319,7 +509,7 @@ async def blv_search_animal_diseases(
         limit: Maximum results (default 50).
 
     Returns:
-        List of disease case records with year, canton, disease, count.
+        List of disease case records with year, canton, disease, cases, source.
     """
     limit = max(1, min(limit, MAX_RESULTS))
     canton_esc = _sparql_escape(canton)
@@ -344,6 +534,7 @@ async def blv_search_animal_diseases(
     """
 
     try:
+        await _step(ctx, 1, 2, "Querying the LINDAS SPARQL endpoint")
         r = await _get(
             SPARQL_ENDPOINT,
             params={"query": sparql_query, "format": "json"},
@@ -351,24 +542,38 @@ async def blv_search_animal_diseases(
         )
         r.raise_for_status()
         bindings = r.json().get("results", {}).get("bindings", [])
-        return [
+        cases: list[dict[str, Any]] = [
             {
                 "year": b.get("year", {}).get("value", ""),
                 "canton": b.get("canton", {}).get("value", ""),
                 "disease": b.get("disease", {}).get("value", ""),
                 "cases": b.get("cases", {}).get("value", ""),
+                "source": DATA_SOURCE,
             }
             for b in bindings
         ]
-    except Exception:
-        # Fallback: try CKAN CSV dataset
-        datasets = await blv_list_datasets(search="tierseuchen infosm")
-        if not datasets:
-            return [{"error": "SPARQL unavailable and no CSV fallback found"}]
-        info = await blv_get_dataset_info(datasets[0]["name"])
-        csv_url = next((r["url"] for r in info["resources"] if r["format"].upper() == "CSV"), None)
+        return cases
+    except Exception as exc:
+        # SPARQL endpoint unavailable — fall back to the CKAN CSV dataset.
+        logger.warning("SPARQL query failed (%s); using CSV fallback", exc)
+        await _ctx_log(ctx, "info", "SPARQL endpoint unavailable — using CSV fallback")
+        slug = await _find_dataset(ctx, "tierseuchen infosm")
+        if slug is None:
+            return [
+                _error(
+                    "SPARQL unavailable and no CSV fallback dataset found",
+                    ERR_UPSTREAM,
+                    note="Try again later, or browse datasets with blv_list_datasets().",
+                )
+            ]
+        info = await blv_get_dataset_info(slug)
+        csv_url = next(
+            (r["url"] for r in info.get("resources", []) if r["format"].upper() == "CSV"),
+            None,
+        )
         if not csv_url:
-            return [{"error": "No CSV resource found in fallback dataset"}]
+            return [_error("No CSV resource in the fallback dataset", ERR_NO_RESOURCE)]
+        await _step(ctx, 2, 2, "Downloading the CSV fallback dataset")
         rows = await _fetch_csv(csv_url)
         return rows[:limit]
 
@@ -379,9 +584,13 @@ async def blv_search_animal_diseases(
 
 
 @mcp.tool(annotations=READ_ONLY_TOOL)
-async def blv_get_animal_health_stats(year: int | None = None) -> list[dict[str, Any]]:
+async def blv_get_animal_health_stats(
+    year: int | None = None, ctx: Context | None = None
+) -> list[dict[str, Any]]:
     """
     Annual animal health statistics from BLV (opendata.swiss CSV/JSON).
+
+    Use case: track year-over-year animal health indicators across Switzerland.
 
     Args:
         year: Filter by year (e.g. 2023). None returns all available years.
@@ -389,19 +598,27 @@ async def blv_get_animal_health_stats(year: int | None = None) -> list[dict[str,
     Returns:
         List of annual statistics records.
     """
-    datasets = await blv_list_datasets(search="tiergesundheit statistik")
-    if not datasets:
-        return [{"error": "No matching dataset found"}]
+    slug = await _find_dataset(ctx, "tiergesundheit statistik")
+    if slug is None:
+        return [
+            _error(
+                "No animal health statistics dataset found",
+                ERR_NO_DATASET,
+                note="Browse available datasets with blv_list_datasets().",
+            )
+        ]
 
-    info = await blv_get_dataset_info(datasets[0]["name"])
+    await _step(ctx, 1, 2, f"Loading dataset metadata for '{slug}'")
+    info = await blv_get_dataset_info(slug)
     csv_url = _ckan_resource_url(info, "CSV") or _ckan_resource_url(info, "JSON")
     if not csv_url:
-        return [{"error": "No CSV/JSON resource found", "dataset": datasets[0]["name"]}]
+        return [_error("No CSV/JSON resource found", ERR_NO_RESOURCE, dataset=slug)]
 
+    await _step(ctx, 2, 2, "Downloading statistics data")
     rows = await _fetch_csv(csv_url)
     if year:
         rows = [r for r in rows if str(year) in str(r.get("Jahr", r.get("year", "")))]
-    return rows[:200]
+    return rows[:MAX_RESULTS]
 
 
 # ---------------------------------------------------------------------------
@@ -414,9 +631,13 @@ async def blv_get_food_control_results(
     canton: str = "",
     year: int | None = None,
     limit: int = 100,
+    ctx: Context | None = None,
 ) -> list[dict[str, Any]]:
     """
     Cantonal food inspection results and violation rates (Lebensmittelkontrolle).
+
+    Use case: compare inspection volumes and violation rates between cantons or
+    across years.
 
     Args:
         canton: Two-letter canton abbreviation (e.g. "ZH"). Empty = all.
@@ -427,15 +648,23 @@ async def blv_get_food_control_results(
         List of inspection result records with canton, year, inspections, violations.
     """
     limit = max(1, min(limit, MAX_RESULTS))
-    datasets = await blv_list_datasets(search="lebensmittelkontrolle kantone")
-    if not datasets:
-        return [{"error": "No matching dataset found"}]
+    slug = await _find_dataset(ctx, "lebensmittelkontrolle kantone")
+    if slug is None:
+        return [
+            _error(
+                "No food control dataset found",
+                ERR_NO_DATASET,
+                note="Browse available datasets with blv_list_datasets().",
+            )
+        ]
 
-    info = await blv_get_dataset_info(datasets[0]["name"])
+    await _step(ctx, 1, 2, f"Loading dataset metadata for '{slug}'")
+    info = await blv_get_dataset_info(slug)
     csv_url = _ckan_resource_url(info, "CSV")
     if not csv_url:
-        return [{"error": "No CSV resource found"}]
+        return [_error("No CSV resource found", ERR_NO_RESOURCE, dataset=slug)]
 
+    await _step(ctx, 2, 2, "Downloading food control data")
     rows = await _fetch_csv(csv_url)
 
     if canton:
@@ -454,9 +683,13 @@ async def blv_get_food_control_results(
 async def blv_get_antibiotic_usage_vet(
     year: int | None = None,
     animal_species: str = "",
+    ctx: Context | None = None,
 ) -> list[dict[str, Any]]:
     """
     Veterinary antibiotic usage data from the Swiss ISABV monitoring system.
+
+    Use case: analyse antibiotic consumption trends by livestock species, e.g.
+    for antimicrobial-resistance reporting.
 
     Args:
         year: Filter by year (e.g. 2022). None = all years.
@@ -465,22 +698,30 @@ async def blv_get_antibiotic_usage_vet(
     Returns:
         Antibiotic usage records with year, species, substance class, quantity (kg).
     """
-    datasets = await blv_list_datasets(search="antibiotika tierarzneimittel isabv")
-    if not datasets:
-        return [{"error": "No matching dataset found"}]
+    slug = await _find_dataset(ctx, "antibiotika tierarzneimittel isabv")
+    if slug is None:
+        return [
+            _error(
+                "No ISABV antibiotic usage dataset found",
+                ERR_NO_DATASET,
+                note="Browse available datasets with blv_list_datasets().",
+            )
+        ]
 
-    info = await blv_get_dataset_info(datasets[0]["name"])
+    await _step(ctx, 1, 2, f"Loading dataset metadata for '{slug}'")
+    info = await blv_get_dataset_info(slug)
     csv_url = _ckan_resource_url(info, "CSV")
     if not csv_url:
-        return [{"error": "No CSV resource found"}]
+        return [_error("No CSV resource found", ERR_NO_RESOURCE, dataset=slug)]
 
+    await _step(ctx, 2, 2, "Downloading antibiotic usage data")
     rows = await _fetch_csv(csv_url)
 
     if year:
         rows = [r for r in rows if str(year) in str(r)]
     if animal_species:
         rows = [r for r in rows if animal_species.lower() in str(r).lower()]
-    return rows[:200]
+    return rows[:MAX_RESULTS]
 
 
 # ---------------------------------------------------------------------------
@@ -492,9 +733,13 @@ async def blv_get_antibiotic_usage_vet(
 async def blv_get_avian_influenza(
     year: int | None = None,
     canton: str = "",
+    ctx: Context | None = None,
 ) -> list[dict[str, Any]]:
     """
     Wild bird avian influenza (H5N1 / HPAI) surveillance data with geodata.
+
+    Use case: locate and date wild-bird avian influenza detections, optionally
+    narrowed to one canton.
 
     Args:
         year: Filter by year (e.g. 2024). None = all.
@@ -503,16 +748,23 @@ async def blv_get_avian_influenza(
     Returns:
         Avian influenza case records with date, location, species, result, coordinates.
     """
-    datasets = await blv_list_datasets(search="vogelgrippe aviäre influenza wildvögel")
-    if not datasets:
-        return [{"error": "No matching dataset found"}]
+    slug = await _find_dataset(ctx, "vogelgrippe aviäre influenza wildvögel")
+    if slug is None:
+        return [
+            _error(
+                "No avian influenza dataset found",
+                ERR_NO_DATASET,
+                note="Browse available datasets with blv_list_datasets().",
+            )
+        ]
 
-    info = await blv_get_dataset_info(datasets[0]["name"])
-    # Prefer JSON, fall back to CSV
+    await _step(ctx, 1, 2, f"Loading dataset metadata for '{slug}'")
+    info = await blv_get_dataset_info(slug)
     data_url = _ckan_resource_url(info, "JSON") or _ckan_resource_url(info, "CSV")
     if not data_url:
-        return [{"error": "No JSON/CSV resource found"}]
+        return [_error("No JSON/CSV resource found", ERR_NO_RESOURCE, dataset=slug)]
 
+    await _step(ctx, 2, 2, "Downloading avian influenza data")
     if data_url.endswith(".json") or "json" in data_url.lower():
         r = await _get(data_url)
         r.raise_for_status()
@@ -524,7 +776,7 @@ async def blv_get_avian_influenza(
         rows = [r for r in rows if str(year) in str(r)]
     if canton:
         rows = [r for r in rows if canton.upper() in str(r).upper()]
-    return rows[:200]
+    return rows[:MAX_RESULTS]
 
 
 # ---------------------------------------------------------------------------
@@ -536,9 +788,13 @@ async def blv_get_avian_influenza(
 async def blv_get_nutrition_data_children(
     age_group: str = "",
     nutrient: str = "",
+    ctx: Context | None = None,
 ) -> list[dict[str, Any]]:
     """
     Swiss national children's nutrition survey data (menuCH-Kids).
+
+    Use case: examine children's nutrient intake by age group against dietary
+    recommendations.
 
     Args:
         age_group: Filter by age group (e.g. "6-9", "10-12"). Empty = all.
@@ -547,15 +803,23 @@ async def blv_get_nutrition_data_children(
     Returns:
         Nutrition intake records with age group, nutrient, mean intake, unit, recommendation.
     """
-    datasets = await blv_list_datasets(search="menuCH kids Kinder Ernährung")
-    if not datasets:
-        return [{"error": "No matching dataset found"}]
+    slug = await _find_dataset(ctx, "menuCH kids Kinder Ernährung")
+    if slug is None:
+        return [
+            _error(
+                "No children's nutrition dataset found",
+                ERR_NO_DATASET,
+                note="Browse available datasets with blv_list_datasets().",
+            )
+        ]
 
-    info = await blv_get_dataset_info(datasets[0]["name"])
+    await _step(ctx, 1, 2, f"Loading dataset metadata for '{slug}'")
+    info = await blv_get_dataset_info(slug)
     csv_url = _ckan_resource_url(info, "CSV")
     if not csv_url:
-        return [{"error": "No CSV resource found"}]
+        return [_error("No CSV resource found", ERR_NO_RESOURCE, dataset=slug)]
 
+    await _step(ctx, 2, 2, "Downloading nutrition survey data")
     rows = await _fetch_csv(csv_url)
 
     if age_group:
@@ -576,9 +840,13 @@ async def blv_search_pesticide_products(
     active_ingredient: str = "",
     status: str = "bewilligt",
     limit: int = 50,
+    ctx: Context | None = None,
 ) -> list[dict[str, Any]]:
     """
     Search the Swiss approved pesticide register (Pflanzenschutzmittelverzeichnis).
+
+    Use case: check whether a plant-protection product or active ingredient is
+    approved (or revoked) in Switzerland.
 
     Args:
         product_name: Filter by product name (partial match). Empty = all.
@@ -590,27 +858,34 @@ async def blv_search_pesticide_products(
         Pesticide product records with name, authorization number, active ingredients, status.
     """
     limit = max(1, min(limit, MAX_RESULTS))
-    datasets = await blv_list_datasets(search="pflanzenschutzmittel pestizid register")
-    if not datasets:
-        return [{"error": "No matching dataset found"}]
+    slug = await _find_dataset(ctx, "pflanzenschutzmittel pestizid register")
+    if slug is None:
+        return [
+            _error(
+                "No pesticide register dataset found",
+                ERR_NO_DATASET,
+                note="Browse available datasets with blv_list_datasets().",
+            )
+        ]
 
-    info = await blv_get_dataset_info(datasets[0]["name"])
+    await _step(ctx, 1, 2, f"Loading dataset metadata for '{slug}'")
+    info = await blv_get_dataset_info(slug)
     xml_url = _ckan_resource_url(info, "XML") or _ckan_resource_url(info, "CSV")
     if not xml_url:
-        return [{"error": "No XML/CSV resource found"}]
+        return [_error("No XML/CSV resource found", ERR_NO_RESOURCE, dataset=slug)]
 
+    await _step(ctx, 2, 2, "Downloading the pesticide register")
     if xml_url.endswith(".xml") or "xml" in xml_url.lower():
         r = await _get(xml_url)
         r.raise_for_status()
         root = ET.fromstring(r.text)
-        results = []
+        results: list[dict[str, Any]] = []
         for product in root.iter("product"):
             name = product.findtext("name", "")
             auth_nr = product.findtext("authorisation_number", "")
             ingredients = [ai.text for ai in product.findall(".//active_ingredient") if ai.text]
             prod_status = product.findtext("status", "")
 
-            # Filters
             if product_name and product_name.lower() not in name.lower():
                 continue
             if active_ingredient and not any(
@@ -651,9 +926,13 @@ async def blv_search_pesticide_products(
 async def blv_get_meat_inspection_stats(
     year: int | None = None,
     animal_type: str = "",
+    ctx: Context | None = None,
 ) -> list[dict[str, Any]]:
     """
     Slaughterhouse meat inspection statistics (Fleischuntersuchung).
+
+    Use case: review slaughter counts and condemnation rates by animal type and
+    year.
 
     Args:
         year: Filter by year (e.g. 2023). None = all.
@@ -662,22 +941,30 @@ async def blv_get_meat_inspection_stats(
     Returns:
         Inspection statistics with year, animal type, slaughter count, condemnation rate.
     """
-    datasets = await blv_list_datasets(search="fleischuntersuchung schlachttier kontrolle")
-    if not datasets:
-        return [{"error": "No matching dataset found"}]
+    slug = await _find_dataset(ctx, "fleischuntersuchung schlachttier kontrolle")
+    if slug is None:
+        return [
+            _error(
+                "No meat inspection dataset found",
+                ERR_NO_DATASET,
+                note="Browse available datasets with blv_list_datasets().",
+            )
+        ]
 
-    info = await blv_get_dataset_info(datasets[0]["name"])
+    await _step(ctx, 1, 2, f"Loading dataset metadata for '{slug}'")
+    info = await blv_get_dataset_info(slug)
     csv_url = _ckan_resource_url(info, "CSV") or _ckan_resource_url(info, "JSON")
     if not csv_url:
-        return [{"error": "No CSV/JSON resource found"}]
+        return [_error("No CSV/JSON resource found", ERR_NO_RESOURCE, dataset=slug)]
 
+    await _step(ctx, 2, 2, "Downloading meat inspection data")
     rows = await _fetch_csv(csv_url)
 
     if year:
         rows = [r for r in rows if str(year) in str(r)]
     if animal_type:
         rows = [r for r in rows if animal_type.lower() in str(r).lower()]
-    return rows[:200]
+    return rows[:MAX_RESULTS]
 
 
 # ---------------------------------------------------------------------------

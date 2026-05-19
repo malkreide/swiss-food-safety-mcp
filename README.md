@@ -155,8 +155,10 @@ The image is a non-root, multi-stage build; the container already binds
 
 > 🔧 **Configuration** — every runtime setting is overridable via `BLV_MCP_*`
 > environment variables (`BLV_MCP_HTTP_HOST`, `BLV_MCP_HTTP_PORT`,
-> `BLV_MCP_ALLOWED_ORIGINS`, `BLV_MCP_TIMEOUT`, …). Outbound requests are
-> restricted to Swiss federal hosts (`*.admin.ch`, `opendata.swiss`).
+> `BLV_MCP_ALLOWED_ORIGINS`, `BLV_MCP_TIMEOUT`, `BLV_MCP_OTEL_ENDPOINT`, …).
+> Outbound requests are restricted to Swiss federal hosts (`*.admin.ch`,
+> `opendata.swiss`). Optional OpenTelemetry tracing: install with
+> `pip install swiss-food-safety-mcp[otel]` and set `BLV_MCP_OTEL_ENDPOINT`.
 
 ---
 

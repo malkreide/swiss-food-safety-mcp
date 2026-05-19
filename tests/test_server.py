@@ -12,13 +12,18 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from swiss_food_safety_mcp.server import (
     BLV_ORG_ID,
+    ERR_NO_DATASET,
     _ckan_resource_url,
+    _error,
     _guard_url,
     _host_allowed,
+    _lifespan,
+    _setup_telemetry,
     _sparql_escape,
     blv_get_antibiotic_usage_vet,
     blv_get_dataset_info,
@@ -605,3 +610,74 @@ async def test_all_tools_are_annotated_read_only():
         assert tool.annotations is not None, tool.name
         assert tool.annotations.readOnlyHint is True, tool.name
         assert tool.annotations.openWorldHint is True, tool.name
+
+
+# ---------------------------------------------------------------------------
+# Tests: structured errors (OBS-001) & not-found guidance (ARCH-003)
+# ---------------------------------------------------------------------------
+
+
+def test_error_helper_builds_structured_record():
+    err = _error("boom", "some_code", note="try this")
+    assert err == {"error": "boom", "code": "some_code", "note": "try this"}
+
+
+@pytest.mark.asyncio
+async def test_no_dataset_error_has_code_and_note():
+    with patch(
+        "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
+    ) as mock_list:
+        mock_list.return_value = []
+        result = await blv_get_food_control_results()
+
+    assert result[0]["code"] == ERR_NO_DATASET
+    assert "note" in result[0] and result[0]["note"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: provenance attribution (CH-004)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_warnings_include_source_attribution():
+    with patch("swiss_food_safety_mcp.server._get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = _mock_response(RSS_SAMPLE)
+        result = await blv_get_public_warnings(limit=5)
+
+    assert all("source" in item and item["source"] for item in result)
+
+
+@pytest.mark.asyncio
+async def test_datasets_include_source_attribution():
+    with patch("swiss_food_safety_mcp.server._get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = _mock_response(CKAN_SEARCH_SAMPLE)
+        result = await blv_list_datasets()
+
+    assert all("source" in ds and ds["source"] for ds in result)
+
+
+# ---------------------------------------------------------------------------
+# Tests: telemetry setup (OBS-006)
+# ---------------------------------------------------------------------------
+
+
+def test_setup_telemetry_is_noop_without_endpoint():
+    # Default profile has no OTLP endpoint configured — must not raise.
+    _setup_telemetry()
+
+
+# ---------------------------------------------------------------------------
+# Live tests — excluded from CI (run explicitly with: pytest -m live)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+async def test_live_public_warnings_hits_real_feed():
+    async with _lifespan(mcp):
+        try:
+            result = await blv_get_public_warnings(limit=3)
+        except (httpx.HTTPError, OSError) as exc:
+            pytest.skip(f"BLV feed unreachable in this environment: {exc}")
+    assert isinstance(result, list)
