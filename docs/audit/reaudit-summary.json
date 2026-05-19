@@ -1,0 +1,43 @@
+{
+  "run_id": "2026-05-19T160000+0200-swiss-food-safety-mcp-reaudit",
+  "audit_date": "2026-05-19",
+  "server": "swiss-food-safety-mcp",
+  "audited_revision": "main@4b9efeb",
+  "baseline_run": "2026-05-19T143000+0200-swiss-food-safety-mcp",
+  "skill": "malkreide/mcp-audit-skill",
+  "checks": {
+    "applicable": 44,
+    "pass": 35,
+    "partial": 5,
+    "fail": 4
+  },
+  "findings": {
+    "total": 9,
+    "critical": 1,
+    "high": 3,
+    "medium": 5,
+    "low": 0
+  },
+  "baseline_findings": {
+    "total": 31,
+    "critical": 3,
+    "high": 16,
+    "medium": 12
+  },
+  "resolved_since_baseline": 22,
+  "production_ready": true,
+  "production_ready_note": "Ready for single-instance deployment. Not for horizontal scaling until SCALE-002/SCALE-003 are addressed.",
+  "release_proposed": false,
+  "release_blockers": ["SCALE-002", "SCALE-003"],
+  "open_findings": [
+    {"id": "SEC-009", "severity": "critical", "status": "partial", "note": "nil practical impact on no-auth read-only public-data server"},
+    {"id": "SCALE-002", "severity": "high", "status": "fail", "note": "not addressed; multi-instance scaling only"},
+    {"id": "SCALE-003", "severity": "high", "status": "fail", "note": "not addressed; multi-instance scaling only"},
+    {"id": "OPS-003", "severity": "high", "status": "partial", "note": "not addressed; phase declaration / ROADMAP missing"},
+    {"id": "SEC-014", "severity": "medium", "status": "fail", "note": "deferred — enterprise gateway control"},
+    {"id": "SEC-015", "severity": "medium", "status": "fail", "note": "deferred — enterprise gateway control"},
+    {"id": "SCALE-006", "severity": "medium", "status": "partial", "note": "no explicit container resource limits"},
+    {"id": "ARCH-002", "severity": "medium", "status": "partial", "note": "use-case prose present, not literal tags"},
+    {"id": "ARCH-003", "severity": "medium", "status": "partial", "note": "structured error note present, no fuzzy-match heuristic"}
+  ]
+}
