@@ -122,14 +122,23 @@ Sofort in Claude Desktop ausprobieren:
 Für den Einsatz via **claude.ai im Browser** (z.B. auf verwalteten Arbeitsplätzen ohne lokale Software-Installation):
 
 ```bash
+# Nur Loopback (Standard) — sicher für lokale Tests:
 swiss-food-safety-mcp --http
-# Server läuft auf Port 8002
+# Server läuft auf 127.0.0.1:8002
+
+# Externe Erreichbarkeit (z.B. hinter dem Render-TLS-Proxy):
+swiss-food-safety-mcp --http --host 0.0.0.0
 ```
+
+> ⚠️ Der HTTP-Transport bindet standardmässig an `127.0.0.1`. `--host 0.0.0.0`
+> **nur** setzen, wenn externe Erreichbarkeit beabsichtigt ist. `ALLOWED_ORIGINS`
+> (kommagetrennt, kein Wildcard) erlaubt Browser-Clients; Standardwert ist
+> `https://claude.ai`.
 
 **Render.com (empfohlen):**
 1. Repository auf GitHub pushen/forken
 2. Auf [render.com](https://render.com): New Web Service → GitHub-Repo verbinden
-3. Startbefehl setzen auf: `swiss-food-safety-mcp --http`
+3. Startbefehl setzen auf: `swiss-food-safety-mcp --http --host 0.0.0.0`
 4. In claude.ai unter Settings → MCP Servers eintragen: `https://your-app.onrender.com/mcp`
 
 > 💡 *«stdio für den Entwickler-Laptop, Streamable HTTP für den Browser.»*
