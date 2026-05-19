@@ -24,10 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mitigating XML entity-expansion attacks (SEC-018).
 - Result-limit parameters are clamped to documented maximums (SEC-018).
 - Error details are masked toward the model via `mask_error_details` (OBS-002).
+- Outbound requests are SSRF-guarded: HTTPS-only, restricted to an immutable
+  egress allow-list of Swiss federal hosts, with public-IP and redirect-target
+  validation (audit findings SEC-004, SEC-005, SEC-021).
 
 ### Added
 - CORS configuration for the HTTP transport exposing the `Mcp-Session-Id`
-  header, with an explicit `ALLOWED_ORIGINS` env var (audit finding SDK-004).
+  header, with an explicit `BLV_MCP_ALLOWED_ORIGINS` env var (SDK-004).
+- All tools now carry MCP annotations (`readOnlyHint`, `idempotentHint`,
+  `openWorldHint`) (audit finding ARCH-009).
+- Multi-stage, non-root `Dockerfile` with a healthcheck (SEC-007, SCALE-004).
+
+### Changed
+- Configuration moved to a `pydantic-settings` `Settings` object; all settings
+  are overridable via `BLV_MCP_*` environment variables (audit finding ARCH-004).
+- The HTTP client is now created once via a FastMCP lifespan and pooled across
+  requests instead of being recreated per call (audit finding SDK-001).
 
 ## [1.0.0] - 2026-03-12
 

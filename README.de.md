@@ -131,9 +131,9 @@ swiss-food-safety-mcp --http --host 0.0.0.0
 ```
 
 > ⚠️ Der HTTP-Transport bindet standardmässig an `127.0.0.1`. `--host 0.0.0.0`
-> **nur** setzen, wenn externe Erreichbarkeit beabsichtigt ist. `ALLOWED_ORIGINS`
-> (kommagetrennt, kein Wildcard) erlaubt Browser-Clients; Standardwert ist
-> `https://claude.ai`.
+> **nur** setzen, wenn externe Erreichbarkeit beabsichtigt ist.
+> `BLV_MCP_ALLOWED_ORIGINS` (kommagetrennt, kein Wildcard) erlaubt
+> Browser-Clients; Standardwert ist `https://claude.ai`.
 
 **Render.com (empfohlen):**
 1. Repository auf GitHub pushen/forken
@@ -141,7 +141,22 @@ swiss-food-safety-mcp --http --host 0.0.0.0
 3. Startbefehl setzen auf: `swiss-food-safety-mcp --http --host 0.0.0.0`
 4. In claude.ai unter Settings → MCP Servers eintragen: `https://your-app.onrender.com/mcp`
 
+**Docker:**
+
+```bash
+docker build -t swiss-food-safety-mcp .
+docker run -p 8002:8002 swiss-food-safety-mcp
+```
+
+Das Image ist ein mehrstufiger Build ohne Root-Rechte; der Container bindet
+bereits `0.0.0.0` und enthält einen Healthcheck.
+
 > 💡 *«stdio für den Entwickler-Laptop, Streamable HTTP für den Browser.»*
+
+> 🔧 **Konfiguration** — alle Laufzeit-Einstellungen sind über `BLV_MCP_*`-
+> Umgebungsvariablen überschreibbar (`BLV_MCP_HTTP_HOST`, `BLV_MCP_HTTP_PORT`,
+> `BLV_MCP_ALLOWED_ORIGINS`, `BLV_MCP_TIMEOUT`, …). Ausgehende Anfragen sind
+> auf Schweizer Bundes-Hosts beschränkt (`*.admin.ch`, `opendata.swiss`).
 
 ---
 
