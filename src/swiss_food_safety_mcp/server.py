@@ -13,27 +13,116 @@ Entry point: `swiss-food-safety-mcp` (defined in pyproject.toml)
 from __future__ import annotations
 
 import argparse
+import asyncio
 import csv
 import io
-import os
+import ipaddress
+import socket
+from contextlib import asynccontextmanager
 from typing import Any
+from urllib.parse import urlparse
 
 import defusedxml.ElementTree as ET
 import httpx
 from fastmcp import FastMCP
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 # ---------------------------------------------------------------------------
-# Constants
+# Configuration
 # ---------------------------------------------------------------------------
 
-CKAN_BASE = "https://opendata.swiss/api/3/action"
-BLV_ORG_ID = "bundesamt-fur-lebensmittelsicherheit-und-veterinaerwesen-blv"
-SPARQL_ENDPOINT = "https://lindas.admin.ch/sparql"
-BLV_RSS = "https://www.newsd.admin.ch/newsd/feeds/rss?lang=de&org-nr=1079"
-TIMEOUT = 20.0
+
+class Settings(BaseSettings):
+    """Runtime configuration — every field is overridable via a BLV_MCP_* env var."""
+
+    model_config = SettingsConfigDict(env_prefix="BLV_MCP_")
+
+    ckan_base: str = "https://opendata.swiss/api/3/action"
+    blv_org_id: str = "bundesamt-fur-lebensmittelsicherheit-und-veterinaerwesen-blv"
+    sparql_endpoint: str = "https://lindas.admin.ch/sparql"
+    blv_rss: str = "https://www.newsd.admin.ch/newsd/feeds/rss?lang=de&org-nr=1079"
+    timeout: float = 20.0
+    http_host: str = "127.0.0.1"
+    http_port: int = 8002
+    allowed_origins: str = "https://claude.ai"
+
+
+settings = Settings()
+
+CKAN_BASE = settings.ckan_base
+BLV_ORG_ID = settings.blv_org_id
+SPARQL_ENDPOINT = settings.sparql_endpoint
+BLV_RSS = settings.blv_rss
+TIMEOUT = settings.timeout
 MAX_RESULTS = 200
+
+# SEC-021: immutable egress allow-list. Outbound requests may only target
+# Swiss federal open-data hosts. Intentionally a frozenset (not configurable).
+ALLOWED_EGRESS_SUFFIXES: frozenset[str] = frozenset({"admin.ch", "opendata.swiss"})
+
+
+# ---------------------------------------------------------------------------
+# Networking — SSRF-guarded shared HTTP client
+# ---------------------------------------------------------------------------
+
+_client: httpx.AsyncClient | None = None
+
+
+def _host_allowed(host: str) -> bool:
+    """True if host equals or is a subdomain of an allow-listed federal domain."""
+    host = (host or "").lower().rstrip(".")
+    return any(host == s or host.endswith("." + s) for s in ALLOWED_EGRESS_SUFFIXES)
+
+
+async def _guard_url(url: str) -> None:
+    """SSRF guard — enforce HTTPS, the egress allow-list, and public-IP targets.
+
+    Raises ValueError if the URL is not permitted. The allow-list also defeats
+    DNS rebinding: an attacker cannot rebind a federal domain they do not own.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError("Refusing non-HTTPS request")
+    host = parsed.hostname or ""
+    if not _host_allowed(host):
+        raise ValueError("Host not on egress allow-list")
+    infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
+    for info in infos:
+        if not ipaddress.ip_address(info[4][0]).is_global:
+            raise ValueError("Host resolves to a non-public address")
+
+
+async def _on_response(response: httpx.Response) -> None:
+    """Re-validate every hop — a redirect must not leave the allow-list."""
+    if not _host_allowed(response.request.url.host):
+        raise ValueError("Redirect target not on egress allow-list")
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastMCP):
+    """Hold one pooled, SSRF-guarded HTTP client for the server's lifetime."""
+    global _client
+    async with httpx.AsyncClient(
+        timeout=TIMEOUT,
+        follow_redirects=True,
+        event_hooks={"response": [_on_response]},
+    ) as client:
+        _client = client
+        try:
+            yield
+        finally:
+            _client = None
+
+
+async def _get(url: str, params: dict | None = None, headers: dict | None = None) -> httpx.Response:
+    """SSRF-guarded async HTTP GET using the pooled client."""
+    await _guard_url(url)
+    if _client is None:
+        raise RuntimeError("HTTP client is not initialized")
+    return await _client.get(url, params=params, headers=headers or {})
+
 
 # ---------------------------------------------------------------------------
 # FastMCP app
@@ -42,6 +131,7 @@ MAX_RESULTS = 200
 mcp = FastMCP(
     name="swiss-food-safety-mcp",
     mask_error_details=True,
+    lifespan=_lifespan,
     instructions=(
         "Tools for Swiss Federal Food Safety and Veterinary Office (BLV) open data. "
         "Covers food recalls, animal disease surveillance, food control results, "
@@ -50,16 +140,13 @@ mcp = FastMCP(
     ),
 )
 
+# ARCH-009: every tool is a read-only, idempotent call to an external API.
+READ_ONLY_TOOL = {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True}
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
-
-async def _get(url: str, params: dict | None = None, headers: dict | None = None) -> httpx.Response:
-    """Shared async HTTP GET with timeout."""
-    async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as client:
-        return await client.get(url, params=params, headers=headers or {})
 
 
 def _ckan_resource_url(package: dict, fmt: str) -> str | None:
@@ -95,7 +182,7 @@ def _sparql_escape(value: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_get_public_warnings(limit: int = 20) -> list[dict[str, str]]:
     """
     Current BLV food recalls and public health warnings (live RSS feed).
@@ -128,7 +215,7 @@ async def blv_get_public_warnings(limit: int = 20) -> list[dict[str, str]]:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_list_datasets(
     limit: int = 28,
     search: str = "",
@@ -174,7 +261,7 @@ async def blv_list_datasets(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_get_dataset_info(dataset_name: str) -> dict[str, Any]:
     """
     Detailed metadata and resource URLs for a specific BLV dataset.
@@ -213,7 +300,7 @@ async def blv_get_dataset_info(dataset_name: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_search_animal_diseases(
     canton: str = "",
     disease: str = "",
@@ -291,7 +378,7 @@ async def blv_search_animal_diseases(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_get_animal_health_stats(year: int | None = None) -> list[dict[str, Any]]:
     """
     Annual animal health statistics from BLV (opendata.swiss CSV/JSON).
@@ -322,7 +409,7 @@ async def blv_get_animal_health_stats(year: int | None = None) -> list[dict[str,
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_get_food_control_results(
     canton: str = "",
     year: int | None = None,
@@ -363,7 +450,7 @@ async def blv_get_food_control_results(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_get_antibiotic_usage_vet(
     year: int | None = None,
     animal_species: str = "",
@@ -401,7 +488,7 @@ async def blv_get_antibiotic_usage_vet(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_get_avian_influenza(
     year: int | None = None,
     canton: str = "",
@@ -445,7 +532,7 @@ async def blv_get_avian_influenza(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_get_nutrition_data_children(
     age_group: str = "",
     nutrient: str = "",
@@ -483,7 +570,7 @@ async def blv_get_nutrition_data_children(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_search_pesticide_products(
     product_name: str = "",
     active_ingredient: str = "",
@@ -560,7 +647,7 @@ async def blv_search_pesticide_products(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL)
 async def blv_get_meat_inspection_stats(
     year: int | None = None,
     animal_type: str = "",
@@ -664,11 +751,13 @@ def main() -> None:
         action="store_true",
         help="Run as Streamable HTTP server on port 8002 (for cloud/Render.com)",
     )
-    parser.add_argument("--port", type=int, default=8002, help="HTTP port (default: 8002)")
+    parser.add_argument(
+        "--port", type=int, default=settings.http_port, help="HTTP port (default: 8002)"
+    )
     parser.add_argument(
         "--host",
         type=str,
-        default="127.0.0.1",
+        default=settings.http_host,
         help=(
             "HTTP bind address (default: 127.0.0.1, loopback only). "
             "Set explicitly to 0.0.0.0 only when external exposure is intended "
@@ -679,12 +768,8 @@ def main() -> None:
 
     if args.http:
         # CORS: browser MCP clients need Mcp-Session-Id exposed. Origins are
-        # explicit (no wildcard) via ALLOWED_ORIGINS (comma-separated).
-        allowed_origins = [
-            o.strip()
-            for o in os.environ.get("ALLOWED_ORIGINS", "https://claude.ai").split(",")
-            if o.strip()
-        ]
+        # explicit (no wildcard) via the BLV_MCP_ALLOWED_ORIGINS env var.
+        allowed_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
         cors = Middleware(
             CORSMiddleware,
             allow_origins=allowed_origins,

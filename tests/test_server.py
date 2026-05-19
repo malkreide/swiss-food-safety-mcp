@@ -17,6 +17,8 @@ import pytest
 from swiss_food_safety_mcp.server import (
     BLV_ORG_ID,
     _ckan_resource_url,
+    _guard_url,
+    _host_allowed,
     _sparql_escape,
     blv_get_antibiotic_usage_vet,
     blv_get_dataset_info,
@@ -26,6 +28,7 @@ from swiss_food_safety_mcp.server import (
     blv_list_datasets,
     blv_search_animal_diseases,
     blv_search_pesticide_products,
+    mcp,
 )
 
 # ---------------------------------------------------------------------------
@@ -538,3 +541,67 @@ async def test_blv_list_datasets_clamps_excessive_limit():
         await blv_list_datasets(limit=9999)
 
     assert mock_get.call_args.kwargs["params"]["rows"] == 100
+
+
+# ---------------------------------------------------------------------------
+# Tests: SSRF egress guard (_host_allowed / _guard_url)
+# ---------------------------------------------------------------------------
+
+
+def test_host_allowed_accepts_federal_domains():
+    assert _host_allowed("opendata.swiss")
+    assert _host_allowed("lindas.admin.ch")
+    assert _host_allowed("www.newsd.admin.ch")
+
+
+def test_host_allowed_rejects_foreign_and_lookalike_domains():
+    assert not _host_allowed("evil.com")
+    assert not _host_allowed("admin.ch.evil.com")
+    assert not _host_allowed("notopendata.swiss")
+    assert not _host_allowed("")
+
+
+@pytest.mark.asyncio
+async def test_guard_url_rejects_non_https():
+    with pytest.raises(ValueError):
+        await _guard_url("http://opendata.swiss/data.csv")
+
+
+@pytest.mark.asyncio
+async def test_guard_url_rejects_unlisted_host():
+    with pytest.raises(ValueError):
+        await _guard_url("https://evil.example.com/data.csv")
+
+
+@pytest.mark.asyncio
+async def test_guard_url_rejects_private_ip(monkeypatch):
+    monkeypatch.setattr(
+        "swiss_food_safety_mcp.server.socket.getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", ("10.0.0.1", 0))],
+    )
+    with pytest.raises(ValueError):
+        await _guard_url("https://opendata.swiss/data.csv")
+
+
+@pytest.mark.asyncio
+async def test_guard_url_allows_public_listed_host(monkeypatch):
+    monkeypatch.setattr(
+        "swiss_food_safety_mcp.server.socket.getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", ("185.34.0.1", 0))],
+    )
+    await _guard_url("https://opendata.swiss/data.csv")
+
+
+# ---------------------------------------------------------------------------
+# Tests: tool annotations (ARCH-009)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_all_tools_are_annotated_read_only():
+    tools = await mcp.list_tools()
+    assert len(tools) == 11
+    for tool in tools:
+        assert tool.annotations is not None, tool.name
+        assert tool.annotations.readOnlyHint is True, tool.name
+        assert tool.annotations.openWorldHint is True, tool.name
