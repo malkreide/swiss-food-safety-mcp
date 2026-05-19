@@ -1,0 +1,40 @@
+{
+  "run_id": "2026-05-19T173000+0200-swiss-food-safety-mcp-reaudit-2",
+  "audit_date": "2026-05-19",
+  "server": "swiss-food-safety-mcp",
+  "audited_revision": "main (Gates 1-4 merged)",
+  "prior_runs": [
+    "2026-05-19T143000+0200-swiss-food-safety-mcp",
+    "2026-05-19T160000+0200-swiss-food-safety-mcp-reaudit"
+  ],
+  "skill": "malkreide/mcp-audit-skill",
+  "checks": {
+    "applicable": 44,
+    "pass": 39,
+    "partial": 3,
+    "fail": 2
+  },
+  "findings": {
+    "total": 5,
+    "critical": 1,
+    "high": 0,
+    "medium": 4,
+    "low": 0
+  },
+  "trend": {
+    "initial": {"total": 31, "critical": 3, "high": 16, "medium": 12},
+    "reaudit_1": {"total": 9, "critical": 1, "high": 3, "medium": 5},
+    "reaudit_2": {"total": 5, "critical": 1, "high": 0, "medium": 4}
+  },
+  "resolved_total": 26,
+  "production_ready": true,
+  "release_proposed": true,
+  "release_note": "Ready for 1.1.0 once SEC-009 is formally accepted as a known no-impact item (inherent to the intentional no-auth design).",
+  "open_findings": [
+    {"id": "SEC-009", "severity": "critical", "status": "partial", "note": "nil practical impact; inherent to no-auth read-only public-data design"},
+    {"id": "SEC-014", "severity": "medium", "status": "fail", "note": "deferred — enterprise gateway control"},
+    {"id": "SEC-015", "severity": "medium", "status": "fail", "note": "deferred — enterprise gateway control"},
+    {"id": "ARCH-002", "severity": "medium", "status": "partial", "note": "use-case prose present, not literal tags"},
+    {"id": "ARCH-003", "severity": "medium", "status": "partial", "note": "structured error note present, no fuzzy-match heuristic"}
+  ]
+}
