@@ -1,5 +1,3 @@
-[🇬🇧 English Version](README.md)
-
 > 🇨🇭 **Teil des [Swiss Public Data MCP Portfolios](https://github.com/malkreide)**
 
 # swiss-food-safety-mcp
@@ -11,6 +9,8 @@
 [![Datenquelle](https://img.shields.io/badge/Daten-opendata.swiss%20%2F%20BLV-red)](https://opendata.swiss/de/organization/bundesamt-fur-lebensmittelsicherheit-und-veterinaerwesen-blv)
 ![Keine Authentifizierung](https://img.shields.io/badge/auth-keine%20erforderlich-brightgreen)
 ![CI](https://github.com/malkreide/swiss-food-safety-mcp/actions/workflows/ci.yml/badge.svg)
+
+🌐 **[English](README.md)** | **Deutsch**
 
 > MCP-Server, der KI-Modelle mit den offenen Daten des Bundesamts für Lebensmittelsicherheit und Veterinärwesen (BLV) verbindet – Lebensmittelrückrufe, Tierseuchenüberwachung, Lebensmittelkontrollergebnisse, Antibiotikaeinsatz, Kinderernährungserhebungen und das Pflanzenschutzmittelverzeichnis. Keine Authentifizierung erforderlich.
 
@@ -44,7 +44,7 @@ Dieser Server folgt der **No-Auth-First**-Philosophie und ist Teil eines MCP-Ser
 - 🌿 **Pflanzenschutzmittelverzeichnis** — Bewilligte Produkte und Wirkstoffe der Schweiz
 - 📊 **Datensatz-Entdeckung** — Alle 28 BLV-Datensätze auf opendata.swiss via CKAN-API
 - 🔗 **Dualer Transport** — stdio (Claude Desktop) + Streamable HTTP (Cloud/Render.com)
-- 🗣️ **Zweisprachig** — Deutsch als Primärdokumentation, Englisch sekundär
+- 🗣️ **Zweisprachig** — Englisch als Primärdokumentation, Deutsch sekundär
 
 ---
 
@@ -235,7 +235,10 @@ swiss-food-safety-mcp/
 │       └── ci.yml             # Python 3.11–3.13 Matrix
 ├── pyproject.toml             # hatchling Build, uv-kompatibel
 ├── CHANGELOG.md
-├── CONTRIBUTING.md
+├── CONTRIBUTING.md            # Beitragsleitfaden (Englisch)
+├── CONTRIBUTING.de.md        # Beitragsleitfaden (Deutsch)
+├── SECURITY.md               # Sicherheitsrichtlinie (Englisch)
+├── SECURITY.de.md            # Sicherheitsrichtlinie (Deutsch)
 ├── LICENSE                    # MIT
 ├── README.md                  # Englisch (primär)
 └── README.de.md               # Diese Datei (Deutsch)
@@ -313,6 +316,12 @@ Siehe [CHANGELOG.md](CHANGELOG.md)
 ## Mitwirken
 
 Siehe [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## Sicherheit
+
+Siehe [SECURITY.md](SECURITY.md) für die Sicherheitsrichtlinie und das Melden von Schwachstellen.
 
 ---
 

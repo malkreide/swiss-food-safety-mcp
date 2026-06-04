@@ -1,91 +1,67 @@
-# Beitragen / Contributing
+# Contributing to swiss-food-safety-mcp
 
-> 🇩🇪 [Deutsch](#deutsch) · 🇬🇧 [English](#english)
+🌐 **English** | **[Deutsch](CONTRIBUTING.de.md)**
+
+Thank you for your interest in contributing! This server is part of the
+[Swiss Public Data MCP Portfolio](https://github.com/malkreide).
 
 ---
 
-## Deutsch
+## Reporting Issues
 
-Vielen Dank für Ihr Interesse an diesem Projekt! Beiträge sind willkommen.
+Use [GitHub Issues](https://github.com/malkreide/swiss-food-safety-mcp/issues) to
+report bugs or request features.
 
-### Wie kann ich beitragen?
+Please include:
+- Python version and OS
+- Full error message or description of unexpected behaviour
+- Steps to reproduce
 
-**Fehler melden:** Erstellen Sie ein [Issue](../../issues) mit einer klaren Beschreibung des Problems, Schritten zur Reproduktion und der erwarteten vs. tatsächlichen Ausgabe.
+For feature requests, describe the use case, ideally with a reference to food
+safety, veterinary medicine, or the Swiss public health context (school
+catering, animal disease prevention, cantonal food inspection, etc.).
 
-**Feature vorschlagen:** Beschreiben Sie den Use Case, idealerweise mit einem Bezug zu Lebensmittelsicherheit, Veterinärwesen oder dem Schweizer öffentlichen Gesundheitskontext (Schulverpflegung, Tierseuchenprävention, Kantinenkontrolle etc.).
+---
 
-**Code beitragen:**
-
-1. Forken Sie das Repository
-2. Erstellen Sie einen Feature-Branch: `git checkout -b feature/mein-feature`
-3. Installieren Sie die Dev-Abhängigkeiten: `uv sync`
-4. Schreiben Sie Tests für Ihre Änderungen
-5. Lint prüfen: `ruff check src/ tests/`
-6. Commit mit aussagekräftiger Nachricht gemäss [Conventional Commits](https://www.conventionalcommits.org/):
-   `git commit -m "feat: Stallhaltungsdaten hinzufügen"`
-7. Pull Request erstellen
-
-### Code-Standards
-
-- Python 3.11+, [Ruff](https://docs.astral.sh/ruff/) für Linting und Formatierung
-- Docstrings auf Englisch (für internationale Kompatibilität)
-- Kommentare und Fehlermeldungen dürfen Deutsch oder Englisch sein
-- Alle MCP-Tools müssen `readOnlyHint: True` setzen (nur lesender Zugriff)
-- Pydantic v2-Modelle für alle Tool-Inputs
-- Tests mit `respx` oder `unittest.mock` mocken; Live-API-Tests mit `@pytest.mark.live` markieren
-
-### Datenquellen-Richtlinie
-
-Nur offizielle Schweizer Open Government Data (OGD) ist als Datenquelle zulässig:
-- [opendata.swiss](https://opendata.swiss/) (BLV-Datensätze)
-- [lindas.admin.ch](https://lindas.admin.ch/) (SPARQL-Endpunkt)
-- [news.admin.ch](https://www.news.admin.ch/) (RSS-Feeds)
-
-Proprietäre oder nicht öffentlich zugängliche Datenquellen werden nicht akzeptiert.
-
-### Tests ausführen
+## Setting Up the Development Environment
 
 ```bash
-# Unit-Tests (kein API-Zugriff erforderlich)
-PYTHONPATH=src pytest tests/ -m "not live"
+git clone https://github.com/malkreide/swiss-food-safety-mcp.git
+cd swiss-food-safety-mcp
 
-# Alle Tests
-PYTHONPATH=src pytest tests/
+# Install with dev dependencies (uv recommended)
+uv sync
 ```
 
 ---
 
-## English
-
-Thank you for your interest in this project! Contributions are welcome.
-
-### How can I contribute?
-
-**Report bugs:** Create an [Issue](../../issues) with a clear description, reproduction steps, and expected vs. actual output.
-
-**Suggest features:** Describe the use case, ideally with a reference to food safety, veterinary medicine, or the Swiss public health context (school catering, animal disease prevention, cantonal food inspection, etc.).
-
-**Contribute code:**
+## Pull Requests
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Install dev dependencies: `uv sync`
-4. Write tests for your changes
-5. Run linter: `ruff check src/ tests/`
-6. Commit with a clear message following [Conventional Commits](https://www.conventionalcommits.org/):
-   `git commit -m "feat: add livestock data tool"`
-7. Create a Pull Request
+2. Create a feature branch: `git checkout -b feat/your-feature`
+3. Make your changes and add tests
+4. Ensure all tests pass: `PYTHONPATH=src pytest tests/ -m "not live"`
+5. Ensure linting is clean: `ruff check src/ tests/`
+6. Commit using [Conventional Commits](https://www.conventionalcommits.org/): `feat: add livestock data tool`
+7. Push and open a Pull Request against `main`
 
-### Code Standards
+Keep one PR per feature/bugfix, and update documentation in **both** English
+and German (`README.md` / `README.de.md`).
+
+---
+
+## Code Standards
 
 - Python 3.11+, [Ruff](https://docs.astral.sh/ruff/) for linting and formatting
 - Docstrings in English (for international compatibility)
 - Comments and error messages may be in German or English
 - All MCP tools must set `readOnlyHint: True` (read-only access)
-- Pydantic v2 models for all tool inputs
+- Pydantic v2 models for all tool inputs (`extra="forbid"`)
 - Mock HTTP calls with `respx` or `unittest.mock`; mark live API tests with `@pytest.mark.live`
 
-### Data Source Policy
+---
+
+## Data Source Policy
 
 Only official Swiss Open Government Data (OGD) is accepted as a data source:
 - [opendata.swiss](https://opendata.swiss/) (BLV datasets)
@@ -94,18 +70,21 @@ Only official Swiss Open Government Data (OGD) is accepted as a data source:
 
 Proprietary or non-publicly accessible data sources will not be accepted.
 
-### Running Tests
+---
+
+## Running Tests
 
 ```bash
 # Unit tests (no live API access required)
 PYTHONPATH=src pytest tests/ -m "not live"
 
-# All tests
+# All tests including live API checks
 PYTHONPATH=src pytest tests/
 ```
 
 ---
 
-## Lizenz / License
+## License
 
-MIT – see [LICENSE](LICENSE)
+By contributing, you agree that your contributions will be licensed under the
+[MIT License](LICENSE).
