@@ -10,9 +10,9 @@
 ![No Auth Required](https://img.shields.io/badge/auth-none%20required-brightgreen)
 ![CI](https://github.com/malkreide/swiss-food-safety-mcp/actions/workflows/ci.yml/badge.svg)
 
-> MCP server connecting AI models to Swiss Federal Food Safety and Veterinary Office (BLV) open data — food recalls, animal disease surveillance, food control results, antibiotic usage, children's nutrition surveys and the pesticide register. No authentication required.
+🌐 **English** | **[Deutsch](README.de.md)**
 
-[🇩🇪 Deutsche Version](README.de.md)
+> MCP server connecting AI models to Swiss Federal Food Safety and Veterinary Office (BLV) open data — food recalls, animal disease surveillance, food control results, antibiotic usage, children's nutrition surveys and the pesticide register. No authentication required.
 
 ---
 
@@ -44,7 +44,7 @@ This server follows the **No-Auth-First** philosophy and is part of a Swiss publ
 - 🌿 **Pesticide register** — Swiss approved pesticide products and active ingredients
 - 📊 **Dataset discovery** — Browse all 28 BLV datasets on opendata.swiss via CKAN API
 - 🔗 **Dual transport** — stdio (Claude Desktop) + Streamable HTTP (cloud/Render.com)
-- 🗣️ **Bilingual** — German-first documentation, English secondary
+- 🗣️ **Bilingual** — English-first documentation, German secondary
 
 ---
 
@@ -234,7 +234,10 @@ swiss-food-safety-mcp/
 │       └── ci.yml             # Python 3.11–3.13 matrix
 ├── pyproject.toml             # hatchling build, uv-compatible
 ├── CHANGELOG.md
-├── CONTRIBUTING.md
+├── CONTRIBUTING.md            # Contribution guide (English)
+├── CONTRIBUTING.de.md        # Contribution guide (German)
+├── SECURITY.md               # Security policy (English)
+├── SECURITY.de.md            # Security policy (German)
 ├── LICENSE                    # MIT
 ├── README.md                  # This file (English)
 └── README.de.md               # German version
@@ -311,6 +314,12 @@ See [CHANGELOG.md](CHANGELOG.md)
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the security policy and how to report a vulnerability.
 
 ---
 
