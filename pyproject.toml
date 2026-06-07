@@ -54,6 +54,7 @@ otel = [
 swiss-food-safety-mcp = "swiss_food_safety_mcp.server:main"
 
 [project.urls]
+"mcp-name" = "io.github.malkreide/swiss-food-safety-mcp"
 Homepage = "https://github.com/malkreide/swiss-food-safety-mcp"
 Repository = "https://github.com/malkreide/swiss-food-safety-mcp"
 Issues = "https://github.com/malkreide/swiss-food-safety-mcp/issues"
