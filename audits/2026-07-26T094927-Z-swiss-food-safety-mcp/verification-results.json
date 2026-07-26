@@ -1,0 +1,471 @@
+{
+  "audit_meta": {
+    "server_name": "swiss-food-safety-mcp",
+    "run_id": "2026-07-26T094927-Z-swiss-food-safety-mcp",
+    "skill_version": "1.0.0",
+    "policy": "fail-or-partial"
+  },
+  "results": {
+    "ARCH-001": {
+      "status": "pass",
+      "category": "ARCH",
+      "severity": "medium",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:348-949 — all 11 tools use a single, consistent snake_case convention (blv_get_public_warnings, blv_list_datasets, blv_search_animal_diseases, …); no spaces/dots/special chars",
+        "src/swiss_food_safety_mcp/server.py:350-361 — descriptions carry a 'Use case:' clause plus Args/Returns, not just a bare verb"
+      ],
+      "gaps": []
+    },
+    "ARCH-002": {
+      "status": "pass",
+      "category": "ARCH",
+      "severity": "medium",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:350-361,392-404 — every tool docstring is well over 100 chars and contains an explicit 'Use case:' line (equivalent to a <use_case> tag) with Args/Returns",
+        "src/swiss_food_safety_mcp/server.py:498-513 — differentiating description for blv_search_animal_diseases (SPARQL + CSV fallback semantics) makes tool selection unambiguous"
+      ],
+      "gaps": [
+        "Uses prose 'Use case:' rather than the literal <use_case>/<important_notes> XML tags suggested by the catalogue (accepted as equivalent)"
+      ]
+    },
+    "ARCH-003": {
+      "status": "partial",
+      "category": "ARCH",
+      "severity": "medium",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:151-153,456-461 — not-found paths return a structured _error() record with a stable code and an actionable 'note' (e.g. 'Call blv_list_datasets() to see valid dataset slugs.')",
+        "src/swiss_food_safety_mcp/server.py:562-575 — upstream-unavailable path returns structured error with recovery guidance"
+      ],
+      "gaps": [
+        "No fuzzy/heuristic fallback and no match_type field (exact/fuzzy/none) on search tools",
+        "Empty keyword searches (blv_list_datasets returning []) and empty SPARQL results return a bare [] with no note/context"
+      ]
+    },
+    "ARCH-004": {
+      "status": "pass",
+      "category": "ARCH",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:349,387-391 — tool handlers take only ctx: Context; no request/headers/stdin/stdout transport internals accessed anywhere",
+        "src/swiss_food_safety_mcp/server.py:54-70 — configuration via pydantic-settings BaseSettings (Settings), not module globals",
+        "src/swiss_food_safety_mcp/server.py:226-243,1056-1074 — shared _lifespan for both transports; main() selects stdio (default) or streamable-http via --http flag"
+      ],
+      "gaps": []
+    },
+    "ARCH-005": {
+      "status": "partial",
+      "category": "ARCH",
+      "severity": "critical",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:54-70 — Settings holds only non-secret config (hosts, ports, endpoints); no API keys, tokens, passwords or connection strings anywhere in src/ (grep clean)",
+        "SECURITY.md:31 — documents 'No secrets required — the server uses no API key or credentials; nothing secret is stored or logged'"
+      ],
+      "gaps": [
+        "No .gitignore in the repo (only .dockerignore is tracked) — no .env/.env.* ignore rules",
+        "No .env.example and no CI secret-scanning workflow (gitleaks/trufflehog). Residual risk is low because the server uses zero secrets, but the ARCH-005 hygiene controls are absent"
+      ]
+    },
+    "ARCH-006": {
+      "status": "pass",
+      "category": "ARCH",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py — 11 @mcp.tool tools total, within the <=12 heuristic budget",
+        "src/swiss_food_safety_mcp/server.py:489-578 — tools are use-case aggregated (blv_search_animal_diseases performs SPARQL query + dataset resolution + CSV fallback internally) rather than 1:1 API endpoint mapping"
+      ],
+      "gaps": []
+    },
+    "ARCH-007": {
+      "status": "pass",
+      "category": "ARCH",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:536-578 — blv_search_animal_diseases returns a self-contained result, internally chaining SPARQL then dataset lookup + CSV download as a fallback (atomic to the LLM, composable internally)",
+        "src/swiss_food_safety_mcp/server.py:601-621,662-674 — statistics/food-control tools resolve slug -> dataset info -> resource download and return complete rows in one call, not intermediate IDs"
+      ],
+      "gaps": []
+    },
+    "ARCH-008": {
+      "status": "pass",
+      "category": "ARCH",
+      "severity": "medium",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:975-998 — two Resources registered (@mcp.resource blv://datasets/overview and blv://warnings/current)",
+        "src/swiss_food_safety_mcp/server.py:1006-1025 — two Prompts registered (@mcp.prompt prompt_food_safety_analysis, prompt_animal_disease_report); server uses all three MCP primitives (Tools + Resources + Prompts)"
+      ],
+      "gaps": []
+    },
+    "ARCH-009": {
+      "status": "pass",
+      "category": "ARCH",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:298 — READ_ONLY_TOOL = {readOnlyHint: True, idempotentHint: True, openWorldHint: True}; applied to every tool via @mcp.tool(annotations=READ_ONLY_TOOL) (e.g. lines 348,386,438,489,586,629,682,732,787,837,925)",
+        "tests/test_server.py:605-612 — test asserts all 11 tools carry readOnlyHint=True and openWorldHint=True; annotations are consistent with the read-only behaviour"
+      ],
+      "gaps": [
+        "openWorldHint=True is correct (external HTTP); destructiveHint not set but unnecessary as no destructive tools exist"
+      ]
+    },
+    "ARCH-011": {
+      "status": "partial",
+      "category": "ARCH",
+      "severity": "medium",
+      "evidence": [
+        "Repo root — all mandatory files present: README.md, README.de.md, CHANGELOG.md, LICENSE, pyproject.toml; dirs src/, tests/, .github/workflows/ present",
+        "pyproject.toml:61-62 — correct src-layout (packages = ['src/swiss_food_safety_mcp'])",
+        "README.md vs README.de.md — bilingual top-level section parity (Overview/Übersicht, Features/Funktionen, … License/Lizenz)"
+      ],
+      "gaps": [
+        "11 tools (>5) all live in a single 1078-line src/swiss_food_safety_mcp/server.py; catalogue expects a tools/ sub-package split and server.py <200 lines (registry/lifecycle only)"
+      ]
+    },
+    "ARCH-012": {
+      "status": "partial",
+      "category": "ARCH",
+      "severity": "medium",
+      "evidence": [
+        "CHANGELOG.md — present and maintained in Keep-a-Changelog style",
+        ".github/dependabot.yml — Dependabot configured for dependency-update PRs (SDK-update discipline)"
+      ],
+      "gaps": [
+        "protocolVersion is NOT pinned: FastMCP(...) at src/swiss_food_safety_mcp/server.py:284-295 sets name/version/mask_error_details/lifespan/instructions but no protocol_version; grep for protocol_version/protocolVersion in src/ is empty",
+        "README has no explicit 'MCP Protocol Version' / update-policy section"
+      ]
+    },
+    "CH-004": {
+      "status": "pass",
+      "category": "CH",
+      "severity": "medium",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:80-81 — DATA_SOURCE ('opendata.swiss / BLV') and DATA_LICENSE ('CC BY 4.0') constants attached as a 'source' field on tool results (e.g. lines 375,428,479,551)",
+        "README.md:248-256 — Data Sources section lists opendata.swiss/BLV, lindas.admin.ch, news.admin.ch with the note 'All data is open government data (OGD) under Creative Commons with attribution requirement'"
+      ],
+      "gaps": []
+    },
+    "SEC-004": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "critical",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:202-217 — _guard_url enforces https scheme, egress allow-list, and resolves the host via getaddrinfo rejecting any non-is_global address (blocks private/loopback/link-local incl. 169.254.169.254 and IPv6 ::1 / fe80::/10)",
+        "src/swiss_food_safety_mcp/server.py:220-223 — response event hook re-validates every redirect hop against the allow-list",
+        "tests/test_server.py:569-597 — tests reject non-HTTPS, unlisted host, and private-IP resolution; allow public listed host"
+      ],
+      "gaps": [
+        "Metadata/loopback blocking is achieved via ipaddress.is_global rather than an explicit 169.254.169.254 literal; effect is equivalent"
+      ]
+    },
+    "SEC-005": {
+      "status": "partial",
+      "category": "SEC",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:214-217 — _guard_url resolves the host once via socket.getaddrinfo and validates every returned address is_global",
+        "src/swiss_food_safety_mcp/server.py:83-85,196-199 — immutable frozenset allow-list plus subdomain-safe _host_allowed defeats DNS rebinding for any host the attacker does not own"
+      ],
+      "gaps": [
+        "No DNS pinning: the getaddrinfo validation in _guard_url and the subsequent _client.get(url) (server.py:245-250) resolve DNS independently, leaving a TOCTOU window; the validated IP is not reused for the TCP connection",
+        "No test asserting a single DNS resolution per request"
+      ]
+    },
+    "SEC-006": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:1073-1074 — default branch runs mcp.run(transport='stdio'); HTTP only when --http is explicitly passed (line 1056)",
+        "README.md:84-160,282-296 — documents stdio local (Claude Desktop) as primary and Streamable HTTP cloud use separately with security notes; default start opens no TCP port"
+      ],
+      "gaps": [
+        "Transport is selected by a --http CLI flag rather than an MCP_TRANSPORT env var, but the stdio-default requirement is met"
+      ]
+    },
+    "SEC-007": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "high",
+      "evidence": [
+        "Dockerfile:13-19 — creates and switches to unprivileged user appuser (uid 10001, >=10000); runs as USER appuser, never root",
+        "Dockerfile:1-11 — multi-stage build (builder/runtime) with python:3.12-slim base; :24-26 HEALTHCHECK present"
+      ],
+      "gaps": [
+        "No Kubernetes manifests, so readOnlyRootFilesystem/seccomp/capabilities.drop hardening is not present (not applicable to the Docker/Render deployment target)"
+      ]
+    },
+    "SEC-008": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "medium",
+      "evidence": [
+        ".github/workflows/publish.yml:32-48 — PyPI publish job uses OIDC Trusted Publisher (environment: pypi, permissions id-token: write, pypa/gh-action-pypi-publish); MCP registry publish also via github-oidc (lines 50-75)",
+        "README.md:58-83 — full transparent install command (uvx swiss-food-safety-mcp); no pre/postinstall hooks (pure-Python hatchling build); CONTRIBUTING.md present for independent verification"
+      ],
+      "gaps": []
+    },
+    "SEC-009": {
+      "status": "partial",
+      "category": "SEC",
+      "severity": "critical",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:54-66 — auth_model is none by design; there is no OAuth token, user identity, or per-user session state to bind",
+        "SECURITY.md:49-56 — SEC-009 documented as an explicit accepted risk under the No-Auth-First design, with a re-audit trigger if authentication is ever added"
+      ],
+      "gaps": [
+        "No cryptographic user<->session binding exists (there is no user identity); FastMCP Streamable-HTTP session IDs are unauthenticated. Acceptable only because the server is no-auth, read-only and processes no PII; if auth is added, bound/TTL'd/server-invalidated sessions must be implemented before merge"
+      ]
+    },
+    "SEC-013": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:54-70 — no API keys/secrets are loaded or used (Public Open Data, no auth); grep for api_key/password/token/secret in src/ is clean",
+        "Dockerfile:1-28 — no ENV secret and no secret baked into any image layer; SECURITY.md:31 documents the no-secret posture (Stufe 1 acceptable for Public Open Data)"
+      ],
+      "gaps": [
+        "No dedicated docs/secret-management.md; the no-secret posture is instead documented in SECURITY.md"
+      ]
+    },
+    "SEC-014": {
+      "status": "partial",
+      "category": "SEC",
+      "severity": "medium",
+      "evidence": [
+        "SECURITY.md:58-65 — SEC-014 tool allow-listing documented as a portfolio/gateway-level accepted risk; every tool is read-only and constrained to fixed federal endpoints"
+      ],
+      "gaps": [
+        "No per-team/role tool allow-list or default-deny tools/list filtering implemented in the server (deferred to a not-yet-existing MCP gateway)"
+      ]
+    },
+    "SEC-015": {
+      "status": "partial",
+      "category": "SEC",
+      "severity": "medium",
+      "evidence": [
+        "tools/tool_manifest.py:26-40 + tools/tool-hashes.json — tool definitions are hash-pinned (SHA-256 over name/description/schema/annotations), enforced in CI (.github/workflows/ci.yml:44-48) as a local anti-rug-pull guard",
+        "SECURITY.md:67-76 — cross-server pre-flight tool-poisoning detection documented as a portfolio/gateway accepted risk"
+      ],
+      "gaps": [
+        "No pre-flight tool-poisoning detection layer (system-prompt/override/invisible-char/homoglyph pattern classes) — a gateway responsibility, not implemented here"
+      ]
+    },
+    "SEC-016": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "critical",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:64 — Settings.http_host defaults to '127.0.0.1' (loopback); main() --host default is settings.http_host (lines 1044-1053)",
+        "Dockerfile:22-28 — 0.0.0.0 is passed explicitly and ONLY in the container CMD; README.md:47-51 documents the loopback-vs-container differentiation"
+      ],
+      "gaps": [
+        "No startup WARNING is logged when bound to 0.0.0.0 outside a container (catalogue lists this as optional)"
+      ]
+    },
+    "SEC-018": {
+      "status": "partial",
+      "category": "SEC",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:349,387-405 — tool params are type-hinted (int/str/int|None), so FastMCP/Pydantic generates and enforces an input schema and coerces types",
+        "src/swiss_food_safety_mcp/server.py:362,405,514 — in-body clamping (limit = max(1, min(limit, 50/100/MAX_RESULTS))) bounds numeric ranges; :322-331 _sparql_escape neutralises SPARQL injection (tested at tests/test_server.py:516-534)"
+      ],
+      "gaps": [
+        "No schema-level constraints: numeric fields lack ge/le, string fields lack min_length/max_length/pattern; no Pydantic input models with strict=True / extra='forbid' (Settings at line 57 sets only env_prefix)",
+        "SECURITY.md:29 overstates the control ('Pydantic v2 strict validation (extra=\"forbid\", whitespace stripping) on every tool input model') — no such input models exist in code"
+      ]
+    },
+    "SEC-019": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "critical",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:297-298,348-949 — server holds only 1 of the 3 lethal-trifecta legs: it makes external requests but is entirely read-only (readOnlyHint) with no write/send capability and touches only public data",
+        "src/swiss_food_safety_mcp/server.py:83-85 — outbound targets constrained to an immutable frozenset egress allow-list; README.md:271-278 / ROADMAP.md document the read-only, no-write design"
+      ],
+      "gaps": []
+    },
+    "SEC-020": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "critical",
+      "evidence": [
+        "src/ — grep for os.system/subprocess/shell=True/eval(/exec(/os.popen returns nothing; no shell execution anywhere",
+        "src/swiss_food_safety_mcp/server.py:27 — XML parsed with defusedxml.ElementTree (XXE-safe); :322-331 _sparql_escape + injection test at tests/test_server.py:525-534"
+      ],
+      "gaps": []
+    },
+    "SEC-021": {
+      "status": "partial",
+      "category": "SEC",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:83-85 — ALLOWED_EGRESS_SUFFIXES is an immutable frozenset (not config-mutable) code-layer allow-list",
+        "src/swiss_food_safety_mcp/server.py:202-223,245-250 — _guard_url pre-request check runs before every outbound GET, and _on_response re-validates redirect hops against the allow-list"
+      ],
+      "gaps": [
+        "No network-layer egress control (NetworkPolicy/Security Group/WARP) as defense-in-depth",
+        "No docs/network-egress.md and no documented allow-list update procedure"
+      ]
+    },
+    "SEC-022": {
+      "status": "pass",
+      "category": "SEC",
+      "severity": "high",
+      "evidence": [
+        "tools/tool_manifest.py:26-68 + tools/tool-hashes.json — release-time SHA-256 hash snapshot of all tool definitions, verified in CI (.github/workflows/ci.yml:44-48) to fail the build on unintended tool changes",
+        "src/swiss_food_safety_mcp/server.py:348-949 — consistent 'blv_' server-identity namespace prefix across all tools; CHANGELOG.md tracks tool/version changes with semver bumps (pyproject.toml version 1.1.3)"
+      ],
+      "gaps": [
+        "Prefix uses 'blv_' rather than the catalogue's literal '<server>__<tool>' double-underscore form (functionally equivalent server-identity namespacing)"
+      ]
+    },
+    "OBS-001": {
+      "status": "pass",
+      "category": "OBS",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:87-90,151-153 — execution errors are returned as structured data records (_error with stable codes ERR_NO_DATASET/ERR_NO_RESOURCE/ERR_UPSTREAM), not raised as protocol errors",
+        "tests/test_server.py:488-508,625-634 — tests cover the execution-error path (no_dataset code + actionable note)"
+      ],
+      "gaps": [
+        "Errors are returned as {error,code,note} dicts rather than via an explicit MCP isError flag; no dedicated test for the protocol-error (wrong tool/args) path"
+      ]
+    },
+    "OBS-002": {
+      "status": "pass",
+      "category": "OBS",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:287 — FastMCP(mask_error_details=True) masks internal error details from the model",
+        "src/swiss_food_safety_mcp/server.py:558,269-277 — upstream exceptions are logged to stderr only (logger.warning) while the client receives generic messages; no traceback.format_exc()/sys.exc_info() in any tool return"
+      ],
+      "gaps": []
+    },
+    "OBS-003": {
+      "status": "partial",
+      "category": "OBS",
+      "severity": "medium",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:41-46 — logging configured via stdlib logging.basicConfig with a consistent timestamped format to stderr; :177,186,238,259,558 use info/warning/debug levels; no print() in src/",
+        "src/swiss_food_safety_mcp/server.py:253-267 — _step emits a debug log line per progress step"
+      ],
+      "gaps": [
+        "Not a structured logger (no structlog/loguru; plain text format, not JSON/logfmt)",
+        "No per-tool-call bound context (tool name, session_id, correlation_id); error/critical levels are effectively unused"
+      ]
+    },
+    "OBS-004": {
+      "status": "pass",
+      "category": "OBS",
+      "severity": "critical",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:41-45 — logging.basicConfig(stream=sys.stderr); all logging pinned to stderr so stdout stays reserved for the JSON-RPC stream",
+        "src/ — grep confirms zero print() statements; same logging config runs for both stdio and HTTP transports (no transport-dependent switch)"
+      ],
+      "gaps": []
+    },
+    "OBS-006": {
+      "status": "partial",
+      "category": "OBS",
+      "severity": "medium",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:161-186 — _setup_telemetry wires a TracerProvider + OTLP/HTTP span exporter and HTTPXClientInstrumentor auto-instrumentation, gated on BLV_MCP_OTEL_ENDPOINT env var, with service.name set; [otel] optional extra in pyproject.toml:47-51",
+        "tests/test_server.py:665-667 — telemetry setup is a safe no-op when no endpoint is configured"
+      ],
+      "gaps": [
+        "No explicit per-tool-call span carrying mcp.tool.name / mcp.user.id / mcp.tool.result.is_error attributes; only HTTP client spans are produced",
+        "No environment/deployment tag on the resource beyond service.name"
+      ]
+    },
+    "OPS-001": {
+      "status": "partial",
+      "category": "OPS",
+      "severity": "high",
+      "evidence": [
+        "pyproject.toml:64-69 — 'live' marker registered; .github/workflows/ci.yml:50-55 runs pytest -m 'not live'; tests/test_server.py:675-683 has a @pytest.mark.live live test",
+        "tests/test_server.py — ~30 mocked unit tests covering warnings, datasets, SSRF guard, SPARQL escaping, annotations, provenance and error paths"
+      ],
+      "gaps": [
+        "HTTP mocking uses unittest.mock.patch on _get, not respx (respx is a declared dev-dep at pyproject.toml:43 but unused in tests)",
+        "Coverage is uneven: <5 unit tests/tool and 3 tools (blv_get_animal_health_stats, blv_get_avian_influenza, blv_get_nutrition_data_children) have no dedicated test; only a single live test exists (not one per tool); no separate nightly live-test workflow"
+      ]
+    },
+    "OPS-002": {
+      "status": "pass",
+      "category": "OPS",
+      "severity": "medium",
+      "evidence": [
+        "README.md:19-332 — all required sections present incl. anchor-demo natural-language queries (lines ~104-105), Installation, Available Tools, Architecture (ASCII diagram at :196-206), Known Limitations (5 limits, :261-269), Safety & Limits, License; README.de.md mirrors the section inventory",
+        "CHANGELOG.md (Keep-a-Changelog) and CONTRIBUTING.md + CONTRIBUTING.de.md (bilingual) present"
+      ],
+      "gaps": []
+    },
+    "OPS-003": {
+      "status": "pass",
+      "category": "OPS",
+      "severity": "high",
+      "evidence": [
+        "README.md:282-289 + ROADMAP.md:1-25 — server explicitly declared Phase 1 (read-only); Phase 2/3 documented as out of scope with re-audit prerequisites for any write capability",
+        "src/swiss_food_safety_mcp/server.py:297-298 — actual tool annotations (all readOnlyHint) match the declared Phase 1; phase intent recorded in ROADMAP/CHANGELOG"
+      ],
+      "gaps": []
+    },
+    "SCALE-001": {
+      "status": "pass",
+      "category": "SCALE",
+      "severity": "high",
+      "evidence": [
+        "src/swiss_food_safety_mcp/server.py:1056-1074 — cloud/HTTP path uses transport='streamable-http' (not stdio, no WebSocket) selected via the --http flag; render.yaml:1-12 deploys the Docker image as a web service",
+        "src/ — grep shows no WebSocket implementation"
+      ],
+      "gaps": []
+    },
+    "SCALE-002": {
+      "status": "partial",
+      "category": "SCALE",
+      "severity": "high",
+      "evidence": [
+        "README.md:282-296 + ROADMAP.md:28-35 — the per-session-stateful Streamable HTTP transport and the deliberate single-instance deployment decision are explicitly documented"
+      ],
+      "gaps": [
+        "No sticky-session (Mcp-Session-Id) LB affinity and no shared session store (Redis/Durable Objects) implemented; horizontal scaling is unsupported by design. Risk is low for a read-only single-instance server but the SCALE-002 control is absent"
+      ]
+    },
+    "SCALE-003": {
+      "status": "partial",
+      "category": "SCALE",
+      "severity": "high",
+      "evidence": [
+        "ROADMAP.md:28-40 — documents that Mcp-Session-Id sticky routing at the load balancer would be required for horizontal scaling (explicitly cross-referenced as audit finding SCALE-003)"
+      ],
+      "gaps": [
+        "No edge-LB Mcp-Session-Id routing / stick-table configuration exists (render.yaml is a single free-plan instance); not implemented, documented as out of scope for single-instance deployment"
+      ]
+    },
+    "SCALE-004": {
+      "status": "pass",
+      "category": "SCALE",
+      "severity": "medium",
+      "evidence": [
+        "Dockerfile:4,11 — two named stages (FROM python:3.12-slim AS builder / AS runtime) multi-stage build; wheels built in builder, installed in slim runtime",
+        "Dockerfile:19,24-26 — non-root USER appuser and a HEALTHCHECK directive for LB integration; slim base keeps the image small"
+      ],
+      "gaps": [
+        "Final image size not measured in-audit, but the slim base + wheel-only install is consistent with the <200 MB target"
+      ]
+    },
+    "SCALE-006": {
+      "status": "pass",
+      "category": "SCALE",
+      "severity": "medium",
+      "evidence": [
+        "docker-compose.yml:11-18 — explicit deploy.resources.limits (cpus 0.50, memory 256M) and reservations (memory 64M, i.e. request < limit), plus restart: unless-stopped",
+        "docker-compose.yml:1-2 — comment references SCALE-006 and the container healthcheck"
+      ],
+      "gaps": [
+        "FD limit (ulimit -n) and explicit OOM-behaviour testing are not addressed, though memory/CPU limits and a restart policy are in place"
+      ]
+    }
+  }
+}

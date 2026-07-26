@@ -27,7 +27,7 @@ umgesetzte Härtung:
 | TLS | Zertifikatsprüfung standardmässig aktiv (httpx-Default); nie deaktiviert (SEC-005) |
 | Binding | Standardmässig stdio-Transport; der optionale `--http`-Transport bindet an `127.0.0.1`, sofern nicht explizit `--host 0.0.0.0` gesetzt wird (SEC-016 / SDK-004) |
 | Origins | `BLV_MCP_ALLOWED_ORIGINS` (kommagetrennt, kein Wildcard) reguliert Browser-Clients; Standardwert `https://claude.ai` |
-| Eingaben | Strikte Pydantic-v2-Validierung (`extra="forbid"`, Whitespace-Trimming) auf jedem Tool-Eingabemodell (SEC-008/018) |
+| Eingaben | Tool-Eingaben werden gegen das von FastMCP aus Typ-Hints generierte Pydantic-Schema validiert (Typ-Coercion), ergänzt um In-Handler-Clamping/Bounds und SPARQL-Literal-Escaping. Schema-Constraints (`ge`/`le`/`max_length`) und `extra="forbid"` sind ein dokumentierter Gap (SEC-018 — partial) |
 | Tools | Jedes Tool setzt `readOnlyHint: True`; es existieren keine Schreib-, Mutations- oder Löschpfade (ARCH) |
 | Secrets | Keine erforderlich — der Server nutzt keinen API-Key und keine Credentials; nichts Geheimes wird gespeichert oder geloggt (ARCH-005/SEC-013) |
 | Fehler | Upstream-Fehlerbodies werden nur nach stderr geloggt; das Modell erhält eine generische, nicht-leckende Meldung (OBS-002) |
@@ -39,6 +39,29 @@ Das Audit und seine Reruns (siehe `docs/audit/`) reduzierten die Findings von 31
 **26 Findings geschlossen** wurden. Die verbleibenden Punkte sind entweder
 akzeptierte Restrisiken (unten) oder inhärent zum bewussten No-Auth-, Nur-Lese-,
 Public-Data-Design. Die Härtungshistorie steht in `CHANGELOG.md`.
+
+## Aktuelle Audit-Scorecard
+
+Re-Audit gegen den MCP-Best-Practice-Katalog (Skill v1.0.0) am 2026-07-26.
+Vollständige Scorecard, Evidenz pro Check und Findings unter
+[`audits/2026-07-26T094927-Z-swiss-food-safety-mcp/`](audits/2026-07-26T094927-Z-swiss-food-safety-mcp/).
+
+| Kennzahl | Wert |
+|---|---|
+| Anwendbare Checks | 40 |
+| Pass | 25 |
+| Partial | 15 |
+| Fail | 0 |
+| Blockierend (Critical/High-Fails) | 0 |
+| **Produktionsreif** | **ja** |
+
+Es gibt keine fehlgeschlagenen Checks. Die 15 Partials sind Verbesserungspunkte
+oder dokumentierte akzeptierte Restrisiken; keiner blockiert die Produktion.
+Offene (nicht akzeptierte) Kernpunkte: SEC-005 (DNS-Pinning), SEC-018
+(Schema-Constraints), SEC-021 (Network-Layer-Egress + Doku), OPS-001 (respx-Tests
++ Live-Tests pro Tool), ARCH-005 (`.gitignore`/`.env.example`/CI-Secret-Scan-Hygiene)
+und ARCH-012 (`protocolVersion`-Pinning). Akzeptierte Restrisiken (SEC-009,
+SEC-014, SEC-015, SCALE-002, SCALE-003) bleiben wie im Abschnitt unten.
 
 ## Akzeptierte Restrisiken (Kontrollen auf Portfolio-Ebene)
 

@@ -26,7 +26,7 @@ news.admin.ch RSS — see `README.md`). Hardening already in place:
 | TLS | Certificate verification on by default (httpx default); never disabled (SEC-005) |
 | Binding | stdio transport by default; the optional `--http` transport binds to `127.0.0.1` unless `--host 0.0.0.0` is explicitly passed (SEC-016 / SDK-004) |
 | Origins | `BLV_MCP_ALLOWED_ORIGINS` (comma-separated, no wildcard) gates browser clients; defaults to `https://claude.ai` |
-| Input | Pydantic v2 strict validation (`extra="forbid"`, whitespace stripping) on every tool input model (SEC-008/018) |
+| Input | Tool inputs are validated against FastMCP's Pydantic-generated schema (type coercion) plus in-handler bounds/clamping and SPARQL-literal escaping. Schema-level `ge`/`le`/`max_length` constraints and `extra="forbid"` are a tracked gap (SEC-018 — partial) |
 | Tools | Every tool sets `readOnlyHint: True`; no write, mutate, or delete paths exist (ARCH) |
 | Secrets | None required — the server uses no API key or credentials; nothing secret is stored or logged (ARCH-005/SEC-013) |
 | Errors | Upstream error bodies are logged to stderr only; the model receives a generic, non-leaking message (OBS-002) |
@@ -38,6 +38,29 @@ The audit and its reruns (see `docs/audit/`) reduced the findings from 31
 with **26 findings resolved**. The remaining items are either accepted risks
 (below) or inherent to the intentional no-auth, read-only, public-data design.
 See `CHANGELOG.md` for the hardening history.
+
+## Latest audit scorecard
+
+Re-audited against the MCP best-practice catalogue (skill v1.0.0) on 2026-07-26.
+Full scorecard, per-check evidence and findings live under
+[`audits/2026-07-26T094927-Z-swiss-food-safety-mcp/`](audits/2026-07-26T094927-Z-swiss-food-safety-mcp/).
+
+| Metric | Value |
+|---|---|
+| Applicable checks | 40 |
+| Pass | 25 |
+| Partial | 15 |
+| Fail | 0 |
+| Blocking (critical/high fails) | 0 |
+| **Production ready** | **yes** |
+
+There are no failing checks. The 15 partials are improvement items or documented
+accepted risks; none block production. Notable open (non-accepted) items:
+SEC-005 (DNS pinning), SEC-018 (schema-level input constraints), SEC-021
+(network-layer egress + docs), OPS-001 (respx tests + per-tool live tests),
+ARCH-005 (`.gitignore`/`.env.example`/CI secret-scan hygiene) and ARCH-012
+(`protocolVersion` pinning). Accepted risks (SEC-009, SEC-014, SEC-015,
+SCALE-002, SCALE-003) are unchanged from the section below.
 
 ## Accepted risks (portfolio-level controls)
 
