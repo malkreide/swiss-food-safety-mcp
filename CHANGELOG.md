@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-07-31
+
+### Behoben
+
+- **User-Agent meldet wieder die tatsaechliche Paketversion.** Das auf PyPI
+  veroeffentlichte `1.1.3` sendete gegenueber jedem Upstream
+  `swiss-food-safety-mcp/1.1.0`; die Version stammt jetzt aus den
+  Paket-Metadaten und kann nicht mehr getrennt vom Paket driften. Der Umbau lag
+  unveroeffentlicht auf `main` — unter derselben Nummer 1.1.3, die PyPI bereits
+  auslieferte, weshalb dieser Bump noetig ist.
+
 ## [1.1.0] - 2026-05-19
 
 Hardening release — resolves the `mcp-audit-skill` audit findings (see
