@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-07-31
+
+### Behoben
+
+- **Der User-Agent meldete auch nach 1.1.4 noch 1.1.0.** Der Umbau auf
+  `importlib.metadata` endete seinerzeit in `__init__.py`; `server.py` pflegte
+  daneben ein eigenes `SERVER_VERSION = "1.1.0"` und speiste damit den
+  User-Agent, die Ready-Zeile im Log und das `version=`-Feld des MCP-Servers.
+  Der Fix galt als erledigt und erreichte die drei nach aussen sichtbaren
+  Stellen nie. Am veroeffentlichten 1.1.4 nachgemessen: installiert 1.1.4,
+  gesendet `swiss-food-safety-mcp/1.1.0`.
+
+  `SERVER_VERSION` liest jetzt `__version__` — ein Wert statt zwei.
+
+  Warum es niemandem auffiel: der zweite Name. Der Versions-Sync-Check und die
+  Identity-Probe suchen beide nach `__version__` oder einem
+  `"name/version"`-Literal; eine Konstante namens `SERVER_VERSION` passt auf
+  keins von beidem, und beide meldeten dieses Repo als sauber. Ein Sweep ueber
+  alle 33 Portfolio-Repos zeigt, dass nur dieser Server diese Form hat.
+
 ## [1.1.4] - 2026-07-31
 
 ### Behoben
