@@ -32,7 +32,19 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
-SERVER_VERSION = "1.1.0"
+from . import __version__
+
+# Der Umbau auf importlib.metadata endete seinerzeit in __init__.py; hier stand
+# weiterhin ein eigenes Literal. Es speist den User-Agent, die Ready-Zeile im
+# Log und das version=-Feld des MCP-Servers — also genau die Stellen, die nach
+# aussen sichtbar sind. Das veroeffentlichte 1.1.4 meldete deshalb immer noch
+# 1.1.0, obwohl der Fix als erledigt galt.
+#
+# Der zweite Name fuer dieselbe Sache ist der Grund, warum es niemand sah:
+# weder der Versions-Sync-Check noch die Identity-Probe erkennen
+# SERVER_VERSION, beide suchen __version__ oder ein "name/version"-Literal.
+# Deshalb kein neues Literal, sondern der eine Wert aus den Paket-Metadaten.
+SERVER_VERSION = __version__
 
 # ---------------------------------------------------------------------------
 # Logging — to stderr only; stdout is reserved for the MCP protocol (OBS-003)
