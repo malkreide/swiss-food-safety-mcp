@@ -7,6 +7,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Behoben
+
+Sieben der elf Werkzeuge wurden am 2026-08-08 zum ersten Mal gegen ihre
+Quellen getrieben. Sechs gaben etwas anderes aus, als sie versprachen — und
+keines sah dabei nach einem Fehler aus.
+
+- **`blv_search_animal_diseases` hat nie Daten geliefert.** Zwei Fehler
+  hintereinander:
+
+  Der SPARQL-Endpunkt war `https://lindas.admin.ch/sparql` — die
+  Editor-Oberflaeche. Sie beantwortet GET mit HTTP 200 und `text/html`, POST
+  mit 404. Der Abfrage-Endpunkt ist `/query`; der Datensatz bei opendata.swiss
+  sagt das selbst, in seiner SPARQL-Ressource steht
+  `endpoint=https://lindas.admin.ch/query`. Kontrolle: Ein erfundener Pfad
+  unter demselben Host antwortet ebenfalls mit 404, der Befund ist also echt.
+
+  Die Abfrage traf ausserdem die Klasse
+  `agriculture.ld.admin.ch/foag/ontology/AnimalDisease`. Die hat **null**
+  Instanzen — genau so viele wie eine frei erfundene Klasse, die als Kontrolle
+  mitgemessen wurde. Der Namensraum heisst `fsvo`, die Daten liegen als Cube
+  vor (57'997 Beobachtungen), und jedes einzelne Praedikat war ein anderes.
+
+  Beides fiel in ein `except Exception` und von dort auf den CSV-Pfad — der an
+  einer als `format: CSV` deklarierten ZIP-Datei scheiterte, mit der Meldung
+  «new-line character seen in unquoted field». Aus zwei Adressfehlern wurde so
+  eine Meldung ueber Zeilenumbrueche.
+
+  Die Abfrage kommt jetzt aus dem Datensatz selbst. Der CSV-Fallback ist
+  entfallen: Ein Fallback, der eine kaputte Abfrage verdeckt, ist schlechter
+  als keiner.
+
+- **`blv_get_animal_health_stats` gab Antibiotikadaten aus.** Die
+  Stichwortsuche «tiergesundheit statistik» traf als ersten Treffer
+  `antibiotikaeinsatz-in-der-veterinarmedizin`; `tiergesundheitsstatistik`
+  stand auf Platz 3. Zwei Werkzeuge lieferten damit **dieselbe Datei**, und
+  fuer eines davon war es die falsche.
+
+- **`blv_get_food_control_results` gab eine Code-Legende aus.** Der Datensatz
+  `lebensmittelkontrolle` fuehrt 26 Ressourcen, davon **18 Code-Listen**. «Die
+  erste CSV» war «Food establishments codelist administrative measures» — eine
+  Liste von Verwaltungsmassnahmen-Codes, ausgegeben als
+  Inspektionsergebnisse. Jetzt kommt die neueste Jahresdatei der
+  Betriebskontrollen, mit Kanton, Datum, Inspektionsgrund und Benotung.
+
+- **`blv_get_avian_influenza` gab die Feldbeschreibung statt der Daten aus.**
+  JSON wurde vor CSV bevorzugt, und die einzige JSON-Ressource ist das
+  Frictionless-`datapackage.json`. Zurueck kam
+  `{"profile": "tabular-data-package", "resources": [...]}` — eine Antwort mit
+  null Faellen darin.
+
+- **`blv_get_meat_inspection_stats` gab eine falsch zerlegte Code-Liste aus.**
+  Die Datei ist semikolongetrennt, `csv.DictReader` nahm das Komma, und die
+  ganze Zeile landete unter einem einzigen Schluessel:
+  `{'\\ufeffID;DE;FR;IT;EN': 'cp1;Kontaminanten;…'}`. Formal ein gueltiges
+  Ergebnis.
+
+- **Der UTF-8-BOM stand im Namen der ersten Spalte.** Gelesen wurde
+  `response.text`; die BLV-Dateien beginnen mit einem BOM, aus `Year` wurde
+  `\\ufeffYear`. Jeder Filter auf `Year` oder `Jahr` lief damit still ins Leere
+  und meldete «keine Treffer».
+
+- **`blv_get_nutrition_data_children` versprach Naehrwerte und lieferte
+  Fragebogenauszaehlungen.** Der Docstring nannte «nutrient intake by age group
+  against dietary recommendations» und bot «Energie», «Zucker», «Eisen» als
+  Filterbeispiele. Der einzige menuCH-Kids-Datensatz auf opendata.swiss fuehrt
+  Antwortzahlen: `Geschlecht, Sprachregion, Altersgruppe, Frage, Antwort,
+  Anzahl`. Ein Filter auf «Eisen» traf nichts und gab eine leere Liste
+  zurueck — nicht zu unterscheiden von «fuer diese Altersgruppe gibt es
+  nichts».
+
+  Der Docstring nennt jetzt, was das Werkzeug liefert, und der Parameter heisst
+  `answer_code` statt `nutrient`. Naehrwertdaten fuer Erwachsene liegen als
+  eigener Datensatz vor; ihn hier anzuflanschen waere eine Erfindung.
+
+### Geaendert
+
+- **Datensaetze und Ressourcen sind gepinnt, nicht gesucht** (`DATENQUELLEN`).
+  «Der erste Suchtreffer» und «die erste Ressource dieses Formats» sind keine
+  Auswahlregeln, sondern Wetten darauf, wie opendata.swiss sortiert — und beide
+  Wetten gingen verloren. Ein Stichwortsuchlauf hat zudem die Eigenschaft,
+  still auf etwas Plausibles zurueckzufallen; ein gepinnter Slug, den es nicht
+  mehr gibt, faellt auf.
+
+  `_daten_ressource()` meldet eine fehlende Ressource als `UpstreamShapeError`
+  und nennt dabei, was stattdessen da war. `blv_search_pesticide_products`
+  sucht weiterhin — dort ist es bewusst, und der strukturierte Fehler bleibt.
+
+### Hinzugefuegt
+
+- **Aufgezeichnete Messungen** — `scripts/record_fixtures.py`,
+  `tests/fixtures/` und ein `PROVENANCE.md` mit Quelle, Datum, Auswahlregel und
+  SHA-256 je Datei.
+
+  Aufgezeichnet ist nicht der Datensatz, sondern die **Auswahl**: je Werkzeug
+  der gepinnte Slug, die getroffene Ressource und deren Kopfzeile. Die
+  Kopfzeile ist der Gegenstand — sie trennt Daten von einer Legende und zeigt,
+  ob BOM und Trennzeichen stimmen.
+
+  Der Anlass steht in einer Zeile: Die Mocks nannten jede CKAN-Ressource
+  `"name": "CSV"`. Bei der Quelle heisst dasselbe Feld «Food establishments
+  2025» oder «Food establishments codelist administrative measures», und genau
+  dieser Unterschied entschied ueber die Antwort. Die Mocks konnten die
+  Unterscheidung nicht ausdruecken, also konnte kein Test daran scheitern.
+
+  Zwei der Messungen sind **Kontrollen**: ein erfundener Pfad unter
+  `lindas.admin.ch` und eine erfundene Klasse im `fsvo`-Namensraum. Ohne sie
+  belegte die Messung nur, was ich bekommen habe.
+
+- **`tests/test_datenauswahl.py`** — 21 Tests, die **in** der CI laufen. Dieses
+  Repo hatte einen einzigen Live-Test fuer elf Werkzeuge, und der pruefte
+  keines davon.
+
+  Gegengeprueft mit sechs gezielten Rueckmutationen: SPARQL-Endpunkt zurueck,
+  erste Ressource statt gepinnter, Stichwortsuche statt Pinning, BOM nicht
+  entfernen, Trennzeichen fest auf Komma, ZIP-Wache entfernen. Alle sechs
+  machen die Suite rot.
+
 ## [1.1.5] - 2026-07-31
 
 ### Behoben

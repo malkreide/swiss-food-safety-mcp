@@ -71,7 +71,7 @@ CKAN_SEARCH_SAMPLE = {
                     {
                         "format": "CSV",
                         "url": "https://example.com/tierseuchen.csv",
-                        "name": "CSV",
+                        "name": "Tierseuchenmeldungen (CSV)",
                         "description": "",
                     },
                     {
@@ -109,7 +109,7 @@ CKAN_PACKAGE_SAMPLE = {
         "license_title": "Creative Commons Attribution",
         "resources": [
             {
-                "name": "CSV",
+                "name": "Tierseuchenmeldungen (CSV)",
                 "format": "CSV",
                 "url": "https://example.com/tierseuchen.csv",
                 "description": "",
@@ -129,13 +129,18 @@ CSV_SAMPLE = (
 )
 
 SPARQL_SAMPLE = {
+    # Die Form, die der LINDAS-Cube liefert. Vorher stand hier `year`/`disease`
+    # — Variablennamen aus einer Abfrage auf eine Klasse, die es nicht gibt.
     "results": {
         "bindings": [
             {
-                "year": {"value": "2024"},
+                "date": {"value": "2024-12-30"},
                 "canton": {"value": "ZH"},
-                "disease": {"value": "Maul- und Klauenseuche"},
-                "cases": {"value": "0"},
+                "town": {"value": "Zürich"},
+                "diseasesGroup": {"value": "Zu bekämpfende Seuchen"},
+                "diseases": {"value": "Salmonellose"},
+                "species": {"value": "Echse"},
+                "count": {"value": "1"},
             }
         ]
     }
@@ -300,7 +305,8 @@ async def test_blv_search_animal_diseases_sparql_success():
     assert isinstance(result, list)
     assert len(result) == 1
     assert result[0]["canton"] == "ZH"
-    assert result[0]["year"] == "2024"
+    assert result[0]["date"] == "2024-12-30"
+    assert result[0]["disease"] == "Salmonellose"
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +394,7 @@ async def test_blv_get_food_control_results_filters_by_canton():
                 {
                     "format": "CSV",
                     "url": "https://example.com/kontrolle.csv",
-                    "name": "CSV",
+                    "name": "Food establishments 2025",
                     "description": "",
                 }
             ]
@@ -424,7 +430,7 @@ async def test_blv_get_antibiotic_usage_vet_year_filter():
                 {
                     "format": "CSV",
                     "url": "https://example.com/isabv.csv",
-                    "name": "CSV",
+                    "name": "ISABV-Amount-Active-Substance-full",
                     "description": "",
                 }
             ]
@@ -460,7 +466,7 @@ async def test_blv_get_meat_inspection_stats_returns_list():
                 {
                     "format": "CSV",
                     "url": "https://example.com/fleisch.csv",
-                    "name": "CSV",
+                    "name": "Fleischkontrollstatistik (CSV)",
                     "description": "",
                 }
             ]
@@ -485,27 +491,66 @@ async def test_blv_get_meat_inspection_stats_returns_list():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_blv_get_food_control_results_no_dataset():
-    with patch(
-        "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
-    ) as mock_list:
-        mock_list.return_value = []
-        result = await blv_get_food_control_results()
-
-    assert isinstance(result, list)
-    assert result[0].get("error") is not None
+# Diese beiden Tests prueften den Pfad «kein Datensatz gefunden». Den gibt es
+# nicht mehr: Die Datenwerkzeuge suchen nicht, sie haben einen gepinnten Slug
+# (siehe `DATENQUELLEN`). An seine Stelle tritt die staerkere Frage — was
+# passiert, wenn die gepinnte Ressource verschwindet? Sie darf nicht still
+# durch irgendeine andere ersetzt werden, sondern muss auffallen.
 
 
 @pytest.mark.asyncio
-async def test_blv_get_antibiotic_usage_no_dataset():
-    with patch(
-        "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
-    ) as mock_list:
-        mock_list.return_value = []
-        result = await blv_get_antibiotic_usage_vet()
+async def test_verschwundene_ressource_faellt_auf_statt_still_ersetzt_zu_werden():
+    from swiss_food_safety_mcp.server import UpstreamShapeError
 
-    assert result[0].get("error") is not None
+    with patch(
+        "swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock
+    ) as mock_info:
+        # Ein Datensatz voller Code-Listen — genau die Lage bei
+        # `lebensmittelkontrolle`, wo 18 von 26 Ressourcen Legenden sind.
+        mock_info.return_value = {
+            "resources": [
+                {"format": "CSV", "name": "Foodstuffs codelist units", "url": "https://x/a.csv"},
+                {"format": "CSV", "name": "Foodstuffs codelist matrix", "url": "https://x/b.csv"},
+            ]
+        }
+        with pytest.raises(UpstreamShapeError) as exc:
+            await blv_get_food_control_results()
+
+    # Die Meldung muss nennen, was stattdessen da war — sonst weiss niemand,
+    # wonach er suchen soll.
+    assert "codelist" in str(exc.value)
+    assert "Food establishments" in str(exc.value)
+
+
+@pytest.mark.asyncio
+async def test_die_neueste_jahresdatei_gewinnt():
+    """Passen mehrere Ressourcen, gewinnt die zuletzt einsortierte.
+
+    Bei `lebensmittelkontrolle` sind das die Jahresdateien; opendata.swiss
+    sortiert sie aufsteigend. «Die erste» waere hier das aelteste Jahr — und
+    «die erste CSV ueberhaupt» war eine Code-Liste.
+    """
+    with (
+        patch(
+            "swiss_food_safety_mcp.server.blv_get_dataset_info", new_callable=AsyncMock
+        ) as mock_info,
+        patch("swiss_food_safety_mcp.server._fetch_csv", new_callable=AsyncMock) as mock_csv,
+    ):
+        mock_info.return_value = {
+            "resources": [
+                {
+                    "format": "CSV",
+                    "name": "Food establishments codelist grading",
+                    "url": "https://x/code.csv",
+                },
+                {"format": "CSV", "name": "Food establishments 2022", "url": "https://x/2022.csv"},
+                {"format": "CSV", "name": "Food establishments 2025", "url": "https://x/2025.csv"},
+            ]
+        }
+        mock_csv.return_value = [{"Kanton": "ZH"}]
+        await blv_get_food_control_results()
+
+    mock_csv.assert_awaited_once_with("https://x/2025.csv")
 
 
 # ---------------------------------------------------------------------------
@@ -624,11 +669,16 @@ def test_error_helper_builds_structured_record():
 
 @pytest.mark.asyncio
 async def test_no_dataset_error_has_code_and_note():
+    """`ERR_NO_DATASET` gilt weiterhin — fuer die Werkzeuge, die noch suchen.
+
+    Die Datenwerkzeuge haben seit dem 2026-08-08 gepinnte Slugs; suchen tut
+    nur noch der Pestizid-Pfad. Dort muss der strukturierte Fehler bleiben.
+    """
     with patch(
         "swiss_food_safety_mcp.server.blv_list_datasets", new_callable=AsyncMock
     ) as mock_list:
         mock_list.return_value = []
-        result = await blv_get_food_control_results()
+        result = await blv_search_pesticide_products()
 
     assert result[0]["code"] == ERR_NO_DATASET
     assert "note" in result[0] and result[0]["note"]
