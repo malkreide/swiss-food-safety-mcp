@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Entfernt
+
+- **`dist/` mit Wheels der Version 1.1.3 aus der Versionskontrolle
+  genommen.** Committete Build-Artefakte, zwei Versionen hinter dem Stand
+  von `pyproject.toml` (1.1.5). Wer das Repo klont, bekommt sie mit — und
+  hat damit ein Paket im Baum, das nicht dem Quelltext daneben entspricht.
+
+  Vor dem Loeschen geprueft, nicht angenommen: Beide Dateien liegen auf PyPI
+  unter derselben Version, und die SHA-256-Summen sind **byte-identisch** mit
+  den lokalen. Es geht also nichts verloren, und ein `python -m build`
+  erzeugt sie ohnehin neu. Kein Verweis im Repo zeigte auf sie.
+
+  `dist/` stand bereits in der `.gitignore` — die entfernt aber nur, was noch
+  nicht getrackt ist.
+
+
 ### Behoben
 
 Sieben der elf Werkzeuge wurden am 2026-08-08 zum ersten Mal gegen ihre
