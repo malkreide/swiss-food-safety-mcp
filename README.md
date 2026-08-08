@@ -36,11 +36,11 @@ This server follows the **No-Auth-First** philosophy and is part of a Swiss publ
 ## Features
 
 - 🚨 **Public warnings & recalls** — Live RSS feed of BLV product recalls and health warnings
-- 🐄 **Animal disease surveillance** — Notifiable animal diseases since 1991 (InfoSM) via SPARQL + CSV
+- 🐄 **Animal disease surveillance** — Notifiable animal diseases since 1991 (InfoSM) via the LINDAS SPARQL cube
 - 🐦 **Avian influenza monitoring** — Wild bird surveillance data with geodata
 - 🥩 **Food control results** — Cantonal food inspection results and violation rates
 - 💊 **Antibiotic usage veterinary** — ISABV data on antibiotic use in animal medicine
-- 🧒 **Children's nutrition survey** — menuCH-Kids national nutritional survey data
+- 🧒 **Children's nutrition survey** — menuCH-Kids questionnaire tallies (answer counts, not nutrient intake)
 - 🌿 **Pesticide register** — Swiss approved pesticide products and active ingredients
 - 📊 **Dataset discovery** — Browse all 28 BLV datasets on opendata.swiss via CKAN API
 - 🔗 **Dual transport** — stdio (Claude Desktop) + Streamable HTTP (cloud/Render.com)
@@ -172,12 +172,12 @@ CPU and memory.
 | `blv_get_public_warnings` | Current food recalls & health warnings | news.admin.ch RSS |
 | `blv_list_datasets` | Browse all 28 BLV open datasets | opendata.swiss CKAN |
 | `blv_get_dataset_info` | Dataset details & resource URLs | opendata.swiss CKAN |
-| `blv_search_animal_diseases` | Notifiable animal diseases since 1991 | SPARQL / CSV fallback |
+| `blv_search_animal_diseases` | Notifiable animal diseases since 1991 | LINDAS SPARQL (`/query`) |
 | `blv_get_animal_health_stats` | Annual animal health statistics | opendata.swiss CSV/JSON |
 | `blv_get_food_control_results` | Cantonal food inspection results | opendata.swiss CSV |
 | `blv_get_antibiotic_usage_vet` | Veterinary antibiotic usage (ISABV) | opendata.swiss CSV |
-| `blv_get_avian_influenza` | Wild bird avian influenza surveillance | opendata.swiss JSON/KML |
-| `blv_get_nutrition_data_children` | Children's nutrition survey (menuCH-Kids) | opendata.swiss CSV |
+| `blv_get_avian_influenza` | Wild bird avian influenza surveillance | opendata.swiss CSV |
+| `blv_get_nutrition_data_children` | menuCH-Kids: questionnaire tallies (not nutrient intake) | opendata.swiss CSV |
 | `blv_search_pesticide_products` | Swiss approved pesticide register | opendata.swiss XML |
 | `blv_get_meat_inspection_stats` | Slaughterhouse inspection statistics | opendata.swiss CSV/JSON |
 
@@ -260,11 +260,13 @@ All data is open government data (OGD) under Creative Commons with attribution r
 
 ## Known Limitations
 
-- **SPARQL endpoint:** Automatic fallback to CSV if the lindas.admin.ch SPARQL endpoint is unavailable
 - **RSS feed:** Limited to the most recent BLV publications; no historical archive
 - **Pesticide register:** XML parsing may be slow for queries returning large result sets
 - **CKAN datasets:** Opendata.swiss rate limits apply under heavy usage
 - **Animal disease data:** Canton-level filtering depends on data completeness in the source
+- **Datasets are pinned, not searched:** each data tool names its dataset slug and the resource that carries the data (see `DATENQUELLEN` in `server.py`). A keyword search takes the *first* hit and therefore falls back silently onto something plausible — that is how `blv_get_animal_health_stats` came to return antibiotics data, and how `blv_get_food_control_results` came to return a code list out of a dataset whose 26 resources include 18 of them. `scripts/record_fixtures.py` re-measures the pinned pairs on every run; a renamed dataset now fails loudly.
+- **Children's nutrition is questionnaire tallies, not nutrient intake:** the only menuCH-Kids dataset published on opendata.swiss carries answer counts (`Geschlecht, Sprachregion, Altersgruppe, Frage, Antwort, Anzahl`). The docstring previously promised nutrient intake against dietary recommendations and offered "Energie", "Zucker", "Eisen" as filter examples — those matched nothing and returned an empty list. Adult food-consumption data exists as a separate dataset that this server does not cover.
+- **The SPARQL-to-CSV fallback is gone.** It could never work: the one CSV resource of the fallback dataset is a ZIP file declared as `format: CSV`. With the endpoint corrected the fallback is also unnecessary — and a fallback that hides a broken query is worse than none.
 
 ---
 
@@ -296,12 +298,45 @@ explicit CPU/memory limits for self-hosting.
 ## Testing
 
 ```bash
-# Unit tests (no API access required)
+# Unit + contract tests (no network) — this is what CI runs
 PYTHONPATH=src pytest tests/ -m "not live"
 
 # All tests including live API checks
 PYTHONPATH=src pytest tests/
+
+# Re-measure which dataset and resource each tool hits
+PYTHONPATH=src python scripts/record_fixtures.py
 ```
+
+**54 tests** — 53 offline, 1 live.
+
+### Why the fixtures are recorded rather than written
+
+A hand-written mock encodes its author's assumption and therefore cannot
+refute it: production code and fixture come from the same head, the same hour,
+the same reading of the docs. Where both are wrong, both are wrong together —
+and the suite stays green.
+
+This repo had it in pure form. Every mocked CKAN resource was named
+`"name": "CSV"`. On opendata.swiss the same field reads `Food establishments
+2025` or `Food establishments codelist administrative measures` — and that
+difference alone decided whether a tool returned inspection results or a code
+legend. The mocks could not express the distinction, so no test could fail on
+it.
+
+What is recorded is therefore the **selection**: for each tool, the pinned
+dataset slug, the resource that was hit, and that file's header line. The
+header is the object of the exercise — it separates data from a legend, and it
+shows whether the BOM and the delimiter were handled. `PROVENANCE.md` names the
+source, the date, the selection rule and the SHA-256 for each file.
+
+Two of the recorded measurements are **controls**: an invented path under
+`lindas.admin.ch` (POST 404, so the 404 on `/sparql` is real) and an invented
+class in the `fsvo` namespace (0 instances, so the previously queried `foag`
+class genuinely does not exist). Without them each measurement would only show
+what *we* received. The recorder aborts if a control stops discriminating, if a
+pinned resource disappears, if a header line is empty or starts with a BOM, or
+if one of the findings is superseded.
 
 ---
 

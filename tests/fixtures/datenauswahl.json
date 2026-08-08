@@ -1,0 +1,59 @@
+{
+  "recorded_at": "2026-08-08",
+  "auswahl": {
+    "animal_health_stats": {
+      "slug": "tiergesundheitsstatistik",
+      "ressource_muster": "Tiergesundheitsstatistik",
+      "warum": "Die Stichwortsuche traf den Antibiotika-Datensatz.",
+      "getroffene_url": "https://www.data.blv.admin.ch/ogd/animal_health_statistics/animal-health-statistics.csv",
+      "kopfzeile": "year,canton,diseasesGroup,diseases,species,count",
+      "ressourcen_im_datensatz": 3,
+      "code_listen_darunter": 0
+    },
+    "food_control_results": {
+      "slug": "lebensmittelkontrolle",
+      "ressource_muster": "Food establishments",
+      "warum": "18 der 26 Ressourcen sind Code-Listen; die erste CSV ist eine davon. Genommen wird die neueste Jahresdatei der Betriebskontrollen.",
+      "getroffene_url": "https://www.data.blv.admin.ch/ogd/food_control/food_control_food_establishments_2025.csv",
+      "kopfzeile": "Betriebskategorie CODE,Datum Prozesskontrolle,Kanton,Verwaltungsmassnahme CODE,Inspektionsgrund CODE,InspektionsID,BetriebsID,Benotung,Bedeutung des Betriebs CODE,Jahr Prozesskontrolle,Kontrollbereich CODE",
+      "ressourcen_im_datensatz": 26,
+      "code_listen_darunter": 18
+    },
+    "antibiotic_usage_vet": {
+      "slug": "antibiotikaeinsatz-in-der-veterinarmedizin",
+      "ressource_muster": "ISABV-Amount-Active-Substance",
+      "warum": "Die Wirkstoffmenge ist die Groesse, die der Docstring nennt.",
+      "getroffene_url": "https://www.data.blv.admin.ch/ogd/veterinary_medicines/antibiotic_consumption/ISABV-Amount-Active-Substance-full.csv",
+      "kopfzeile": "Year,Category,Class of active substances,Category of use,Critical active substance,Prescription type,Species,Amount of active ingredient (kg)",
+      "ressourcen_im_datensatz": 7,
+      "code_listen_darunter": 0
+    },
+    "avian_influenza": {
+      "slug": "uberwachung-von-wildvogeln-auf-aviare-influenza-ai",
+      "ressource_muster": "Wildvögel",
+      "warum": "Die JSON-Ressource ist das datapackage.json, nicht die Daten.",
+      "getroffene_url": "https://www.data.blv.admin.ch/ogd/monitoring_wild_birds_avian_influenza/monitoring_wild_birds_avian_influenza.csv",
+      "kopfzeile": "Kanton,Fundort,Probenahme-Datum,Vogelart,Status Wildvogel,Ergebnis,Pathogenitaet,Subtyp",
+      "ressourcen_im_datensatz": 8,
+      "code_listen_darunter": 0
+    },
+    "nutrition_children": {
+      "slug": "menuch-kids-fragebogen",
+      "ressource_muster": "MenuCH-Kids_Questionnaire_aggregated",
+      "warum": "Der einzige menuCH-Kids-Datensatz; er fuehrt Fragebogenauszaehlungen.",
+      "getroffene_url": "https://www.data.blv.admin.ch/ogd/menuCH-Kids/eating_habits/MenuCH-Kids_Questionnaire_aggregated.csv",
+      "kopfzeile": "Geschlecht,Sprachregion,Altersgruppe,Frage,Antwort,Anzahl",
+      "ressourcen_im_datensatz": 6,
+      "code_listen_darunter": 0
+    },
+    "meat_inspection": {
+      "slug": "fleischkontrollstatistik",
+      "ressource_muster": "Fleischkontrollstatistik",
+      "warum": "Die Stichwortsuche traf eine Code-Liste.",
+      "getroffene_url": "https://www.data.blv.admin.ch/ogd/statistics_on_meat_inspection/meat-inspection.csv",
+      "kopfzeile": "Year,Canton,Species,Type of Slaughter,Origin of animal,Fitness for consumption,Count",
+      "ressourcen_im_datensatz": 3,
+      "code_listen_darunter": 0
+    }
+  }
+}

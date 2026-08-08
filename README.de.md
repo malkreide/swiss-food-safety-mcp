@@ -36,11 +36,11 @@ Dieser Server folgt der **No-Auth-First**-Philosophie und ist Teil eines MCP-Ser
 ## Funktionen
 
 - 🚨 **Öffentliche Warnungen & Rückrufe** — Aktueller RSS-Feed mit BLV-Produktrückrufen und Gesundheitswarnungen
-- 🐄 **Tierseuchenüberwachung** — Meldepflichtige Tierseuchen seit 1991 (InfoSM) via SPARQL + CSV
+- 🐄 **Tierseuchenüberwachung** — Meldepflichtige Tierseuchen seit 1991 (InfoSM) über den LINDAS-SPARQL-Cube
 - 🐦 **Vogelgrippe-Monitoring** — Wildvogel-Überwachungsdaten mit Geodaten
 - 🥩 **Lebensmittelkontrollergebnisse** — Kantonale Inspektionsergebnisse und Beanstandungsquoten
 - 💊 **Antibiotikaeinsatz Veterinär** — ISABV-Daten zum Antibiotikaeinsatz in der Tiermedizin
-- 🧒 **Kinderernährungserhebung** — Nationale Ernährungsstudie menuCH-Kids
+- 🧒 **Kinderernährungserhebung** — menuCH-Kids: Fragebogenauszählungen (Antwortzahlen, keine Nährwerte)
 - 🌿 **Pflanzenschutzmittelverzeichnis** — Bewilligte Produkte und Wirkstoffe der Schweiz
 - 📊 **Datensatz-Entdeckung** — Alle 28 BLV-Datensätze auf opendata.swiss via CKAN-API
 - 🔗 **Dualer Transport** — stdio (Claude Desktop) + Streamable HTTP (Cloud/Render.com)
@@ -173,12 +173,12 @@ zusätzlich CPU und Arbeitsspeicher.
 | `blv_get_public_warnings` | Aktuelle Lebensmittelrückrufe & Warnungen | news.admin.ch RSS |
 | `blv_list_datasets` | Alle 28 BLV-Datensätze durchsuchen | opendata.swiss CKAN |
 | `blv_get_dataset_info` | Datensatz-Details & Ressourcen-URLs | opendata.swiss CKAN |
-| `blv_search_animal_diseases` | Meldepflichtige Tierseuchen seit 1991 | SPARQL / CSV-Fallback |
+| `blv_search_animal_diseases` | Meldepflichtige Tierseuchen seit 1991 | LINDAS SPARQL (`/query`) |
 | `blv_get_animal_health_stats` | Jährliche Tiergesundheitsstatistiken | opendata.swiss CSV/JSON |
 | `blv_get_food_control_results` | Kantonale Lebensmittelkontrollergebnisse | opendata.swiss CSV |
 | `blv_get_antibiotic_usage_vet` | Veterinärer Antibiotikaeinsatz (ISABV) | opendata.swiss CSV |
-| `blv_get_avian_influenza` | Vogelgrippe-Überwachung Wildvögel | opendata.swiss JSON/KML |
-| `blv_get_nutrition_data_children` | Kinderernährungserhebung (menuCH-Kids) | opendata.swiss CSV |
+| `blv_get_avian_influenza` | Vogelgrippe-Überwachung Wildvögel | opendata.swiss CSV |
+| `blv_get_nutrition_data_children` | menuCH-Kids: Fragebogenauszählungen (keine Nährwerte) | opendata.swiss CSV |
 | `blv_search_pesticide_products` | Schweizer Pflanzenschutzmittelverzeichnis | opendata.swiss XML |
 | `blv_get_meat_inspection_stats` | Schlachttier-Inspektionsstatistiken | opendata.swiss CSV/JSON |
 
@@ -229,6 +229,8 @@ swiss-food-safety-mcp/
 │       └── server.py          # Alle Werkzeuge, Ressourcen, Prompts
 ├── tests/
 │   ├── __init__.py
+│   ├── fixtures/              # Aufgezeichnete Auswahl + PROVENANCE.md
+│   ├── test_datenauswahl.py   # Vertragstests (laufen in der CI)
 │   └── test_server.py         # Unit-Tests (keine Live-API-Aufrufe)
 ├── .github/
 │   └── workflows/
@@ -261,11 +263,13 @@ Alle Daten sind Open Government Data (OGD) unter Creative Commons mit Quellenang
 
 ## Bekannte Einschränkungen
 
-- **SPARQL-Endpunkt:** Automatischer Fallback auf CSV, falls lindas.admin.ch nicht erreichbar ist
 - **RSS-Feed:** Auf aktuelle BLV-Publikationen begrenzt; kein historisches Archiv
 - **Pflanzenschutzmittelverzeichnis:** XML-Parsing kann bei grossen Ergebnismengen langsam sein
 - **CKAN-Datensätze:** Opendata.swiss-Ratenlimits gelten bei intensiver Nutzung
 - **Tierseuchendaten:** Kantonsfilterung abhängig von der Datenvollständigkeit in der Quelle
+- **Datensätze sind gepinnt, nicht gesucht:** Jedes Datenwerkzeug nennt seinen Datensatz-Slug und die Ressource, die die Daten trägt (siehe `DATENQUELLEN` in `server.py`). Eine Stichwortsuche nimmt den *ersten* Treffer und fällt damit still auf etwas Plausibles zurück — so kam `blv_get_animal_health_stats` dazu, Antibiotikadaten auszugeben, und `blv_get_food_control_results` dazu, eine Code-Liste zu liefern, aus einem Datensatz, dessen 26 Ressourcen 18 davon enthalten. `scripts/record_fixtures.py` misst die gepinnten Paare bei jedem Lauf neu; ein umbenannter Datensatz fällt jetzt auf.
+- **Kinderernährung sind Fragebogenauszählungen, keine Nährwertaufnahme:** Der einzige menuCH-Kids-Datensatz auf opendata.swiss führt Antwortzahlen (`Geschlecht, Sprachregion, Altersgruppe, Frage, Antwort, Anzahl`). Der Docstring versprach zuvor Nährwertaufnahme gegen Ernährungsempfehlungen und bot «Energie», «Zucker», «Eisen» als Filterbeispiele — die trafen nichts und lieferten eine leere Liste. Lebensmittelkonsum Erwachsener liegt als eigener Datensatz vor, den dieser Server nicht abdeckt.
+- **Der Fallback von SPARQL auf CSV ist entfallen.** Er konnte nie funktionieren: Die einzige CSV-Ressource des Fallback-Datensatzes ist eine ZIP-Datei, die als `format: CSV` deklariert ist. Mit korrigiertem Endpunkt ist er zudem unnötig — und ein Fallback, der eine kaputte Abfrage verdeckt, ist schlechter als keiner.
 
 ---
 
@@ -298,12 +302,45 @@ einzelne Render-Instanz (oder ein Container) ist das unterstützte Deployment;
 ## Tests
 
 ```bash
-# Unit-Tests (kein API-Zugriff erforderlich)
+# Unit- und Vertragstests (ohne Netz) — das fährt die CI
 PYTHONPATH=src pytest tests/ -m "not live"
 
 # Alle Tests inklusive Live-API-Prüfungen
 PYTHONPATH=src pytest tests/
+
+# Neu messen, welchen Datensatz und welche Ressource jedes Werkzeug trifft
+PYTHONPATH=src python scripts/record_fixtures.py
 ```
+
+**54 Tests** — 53 offline, 1 live.
+
+### Warum die Fixtures aufgezeichnet und nicht geschrieben sind
+
+Ein handgeschriebener Mock kodiert die Annahme seines Autors und kann sie
+deshalb prinzipiell nicht widerlegen: Produktivcode und Fixture stammen aus
+demselben Kopf, derselben Stunde, derselben Lektüre der Doku. Wo beide irren,
+irren beide gleich — und die Suite bleibt grün.
+
+Dieses Repo hatte den Fall in Reinform. Jede gemockte CKAN-Ressource hiess
+`"name": "CSV"`. Bei opendata.swiss steht in demselben Feld `Food
+establishments 2025` oder `Food establishments codelist administrative
+measures` — und allein dieser Unterschied entschied, ob ein Werkzeug
+Inspektionsergebnisse oder eine Code-Legende ausgab. Die Mocks konnten die
+Unterscheidung gar nicht ausdrücken, also konnte kein Test daran scheitern.
+
+Aufgezeichnet ist deshalb die **Auswahl**: je Werkzeug der gepinnte
+Datensatz-Slug, die getroffene Ressource und die Kopfzeile dieser Datei. Die
+Kopfzeile ist der Gegenstand — sie trennt Daten von einer Legende und zeigt, ob
+BOM und Trennzeichen stimmen. `PROVENANCE.md` nennt je Datei Quelle, Datum,
+Auswahlregel und SHA-256.
+
+Zwei der Messungen sind **Kontrollen**: ein erfundener Pfad unter
+`lindas.admin.ch` (POST 404, also ist der 404 auf `/sparql` echt) und eine
+erfundene Klasse im `fsvo`-Namensraum (0 Instanzen, also gibt es die zuvor
+abgefragte `foag`-Klasse tatsächlich nicht). Ohne sie zeigte jede Messung nur,
+was *ich* bekommen habe. Der Recorder bricht ab, wenn eine Kontrolle nicht mehr
+unterscheidet, wenn eine gepinnte Ressource verschwindet, wenn eine Kopfzeile
+leer ist oder mit einem BOM beginnt, oder wenn einer der Befunde überholt ist.
 
 ---
 

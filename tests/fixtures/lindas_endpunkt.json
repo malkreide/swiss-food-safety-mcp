@@ -1,0 +1,25 @@
+{
+  "recorded_at": "2026-08-08",
+  "endpunkte": {
+    "gebaut_frueher": {
+      "url": "https://lindas.admin.ch/sparql",
+      "post_status": 404,
+      "content_type": "text/plain"
+    },
+    "gebaut_jetzt": {
+      "url": "https://lindas.admin.ch/query",
+      "post_status": 200,
+      "content_type": "application/sparql-results+json;charset=UTF-8"
+    },
+    "kontrolle_erfunden": {
+      "url": "https://lindas.admin.ch/diesen-pfad-gibt-es-nicht",
+      "post_status": 404,
+      "content_type": "text/plain"
+    }
+  },
+  "klassen": {
+    "foag_AnimalDisease_frueher": 0,
+    "kontrolle_erfundene_klasse": 0,
+    "fsvo_cube_beobachtungen": 57997
+  }
+}
