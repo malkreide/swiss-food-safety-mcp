@@ -65,6 +65,15 @@ pytest tests/ -v -m "not live"
 python scripts/check_version_sync.py
 ```
 
+Die Liste ist nicht gleichförmig: `tool_manifest.py --check` und `pytest`
+tragen `if: matrix.python-version == '3.11'` — sie laufen einmal, nicht
+dreimal. Ein grünes 3.12/3.13 sagt über sie nichts aus.
+
+Vorbedingung ist der editable Install (`pip install -e ".[dev]"`) — er bringt
+ruff und macht das Paket importierbar. Das `PYTHONPATH: src` an drei
+CI-Schritten ist daneben wirkungslos; wer den Import über den Env-Eintrag
+erklärt, sucht einen Fehler an der falschen Stelle.
+
 Die ruff-Gates laufen zweimal: im Job `test` und noch einmal im Job `lint`.
 **Der `lint`-Job installiert das Projekt** — er muss es, sonst fehlt ihm ruff;
 er hatte früher nur einen eigenen `pip install ruff==…`.
