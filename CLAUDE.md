@@ -65,10 +65,14 @@ hat keinen eigenen Pin-Schritt — der Install über `ci.yml` genügt, lokal wie
 dort. Eine `.pre-commit-config.yaml` gibt es nicht; wenn eine dazukommt, muss
 sie dieselbe Version aus `pyproject.toml` beziehen und keine zweite nennen.
 `tests/test_werkzeug_versionen.py` hält das fest, statt es zu behaupten — der
-Rückfall wäre still, er macht kein Gate rot.
+Rückfall wäre still, er macht kein Gate rot. Der Test scannt allerdings nur
+`.github/workflows/*.yml|*.yaml`; eine `.pre-commit-config.yaml` läge
+ausserhalb seines Blickfelds — wer eine anlegt, zieht den Scan mit.
 
 Vor dem Lauf `ruff --version` prüfen: ein älteres ruff früher im `PATH`
 schlägt den Pin, ohne dass der Install etwas meldet.
+`python scripts/check_ruff_pin.py` nimmt einem das ab — es prüft beide Wege,
+`ruff` aus dem `PATH` und `python -m ruff`, gegen den Pin.
 
 **Gates, wörtlich aus `ci.yml`** (Matrix: Python 3.11 / 3.12 / 3.13):
 
