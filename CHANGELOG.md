@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hinzugefuegt
+
+- **SessionStart-Hook, der den Rueckstand des Klons meldet**
+  (`.claude/hooks/session-start.sh`, registriert in `.claude/settings.json`).
+  Liegt der ausgecheckte Stand hinter `origin/<Default-Branch>`, sagt er beim
+  Sessionstart wie viele Commits fehlen; liegt er nicht zurueck, schweigt er.
+
+  Grund: Ein veralteter Klon hat am 3.8.2026 **zweimal** eine rote CI erzeugt,
+  deren Ursache nicht im Diff stand — die fehlenden Commits waren jeweils
+  genau die, die das Gate einfuehrten, an dem der Branch scheiterte. Man sucht
+  den Fehler dann in den Dateien, die man selbst geaendert hat, und findet
+  dort nichts. Die Pruefung kostet eine Sekunde.
+
+  Die oberste Zusicherung ist nicht die Meldung, sondern dass der Hook die
+  Session **nie** blockiert: kein Netz, kein Remote, kein Git-Repo, detached
+  HEAD, fehlende Credentials — alles endet still mit Exit 0, das `fetch` unter
+  einem 5-Sekunden-`timeout`. Ein Hook, der bei Netzproblemen die Arbeit
+  anhaelt, wird nach dem zweiten Mal abgeschaltet und schuetzt danach gar
+  nichts. Deshalb steht im Skript bewusst kein `set -e`.
+
+  Der Default-Branch wird ermittelt (lokaler Symref, ersatzweise
+  `ls-remote --symref`), nicht als `main` angenommen: Drei Server im Portfolio
+  heissen ihn `master`, und genau diese Annahme hat schon einmal einen Branch
+  15 Commits alt werden lassen.
+
+  `tests/test_session_start_hook.py` prueft das gegen echte Wegwerf-Repos, die
+  absichtlich auf `master` stehen — gegen ein `main`-Repo waere ein Hook mit
+  hartkodiertem `main` von einem korrekten nicht zu unterscheiden. Die
+  Gegenprobe hat dabei zwei Fehler in den Tests selbst aufgedeckt:
+  `git update-ref -d` dereferenziert Symrefs und loeschte
+  `refs/remotes/origin/master` statt `origin/HEAD`, und das haengende
+  Ersatz-git erkannte `fetch` nur als `$1` — im Zweig ohne `timeout` steht
+  dort `-c`. Beide Tests waren gruen und prueften nichts.
+
 ### Entfernt
 
 - **`dist/` mit Wheels der Version 1.1.3 aus der Versionskontrolle
