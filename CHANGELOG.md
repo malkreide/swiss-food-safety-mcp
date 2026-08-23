@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`allow_headers` stand auf `["*"]`.** Der Kommentar daneben versprach «no
+  wildcard» — er galt den Origins; die Header-Liste war eine. Starlette
+  schaltet damit auf `allow_all_headers` und spiegelt im Preflight zurück, was
+  der Browser ankündigt, also durfte jeder gelistete Origin jeden beliebigen
+  Header senden. Die Liste nennt jetzt `Content-Type`, `Mcp-Session-Id` und
+  `Last-Event-ID`. Letzterer setzt einen abgerissenen SSE-Strom fort und war
+  unter der Wildcard nie geprüft: eine Wildcard kann nicht falsch werden.
+
+  Die Routing-Header der Spec `2026-07-28` stehen bewusst **nicht** darauf.
+  fastmcp 3.x pinnt `mcp` 1.x, wo es `mcp.shared.inbound` nicht gibt und
+  niemand sie liest. Der zugehörige Test ist an das SDK gebunden statt an eine
+  Notiz und fällt, sobald ein Upgrade das Modul hereinzieht.
+
+### Changed
+
+- **`build_cors_middleware` und `build_http_app` aus `main` herausgezogen.**
+  Solange die Freigabeliste neben `mcp.run` stand, liess sie sich nur lesen,
+  nicht ausprobieren — und eine Liste, die richtig aussieht, kann trotzdem nie
+  an der Middleware ankommen. `main` reicht dasselbe Objekt an `mcp.run`
+  weiter; am Verhalten ändert sich nichts.
+
 ### Hinzugefuegt
 
 - **SessionStart-Hook, der den Rueckstand des Klons meldet**
