@@ -32,6 +32,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Hinzugefuegt
 
+- **Ein Gate für die MCP-Protokollrevision.** Bisher stand dazu nirgends etwas —
+  keine Konstante, kein Satz in einer README, kein Test. Ein SDK-Bump, der die
+  Revision ändert, wäre lautlos durchgelaufen: alles grün, andere Revision am
+  Draht. `tests/test_protocol_version.py` hält jetzt drei Dinge gegeneinander:
+  die dokumentierte Revision `2025-11-25`, `LATEST_PROTOCOL_VERSION` aus dem
+  SDK, und die Revision, die ein echter `initialize` gegen das Server-Objekt
+  zurückgibt.
+
+  Beide READMEs bekommen den Abschnitt «MCP Protocol Version», und der Test
+  prüft beide einzeln — nur die englische anzusehen wäre genau die Lücke, an der
+  die zwei anderswo im Portfolio schon auseinandergelaufen sind.
+
+  Anders als die Schwester-Server pinnt dieser **eine** Revision, kein Paar:
+  fastmcp 3.x zieht `mcp` 1.x herein, wo es `mcp.types.version` nicht gibt.
+  `test_das_sdk_kennt_hier_nur_eine_aera` ist an das SDK gebunden statt an einen
+  Kommentar und fällt, sobald ein Upgrade die beiden Konstanten hereinzieht.
+
 - **SessionStart-Hook, der den Rueckstand des Klons meldet**
   (`.claude/hooks/session-start.sh`, registriert in `.claude/settings.json`).
   Liegt der ausgecheckte Stand hinter `origin/<Default-Branch>`, sagt er beim
