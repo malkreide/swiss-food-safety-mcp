@@ -1196,6 +1196,59 @@ def prompt_animal_disease_report(canton: str = "ZH", year: int = 2024) -> str:
 # ---------------------------------------------------------------------------
 
 
+# `allow_headers` stood at `["*"]`. Starlette switches to `allow_all_headers`
+# on a wildcard and mirrors back whatever a browser announces, so every listed
+# origin could send any header at all — that is not an allow-list, it is the
+# absence of one. It also hides every drift, because a wildcard cannot become
+# wrong: drop a header the protocol needs and nothing turns red.
+#
+# `Last-Event-ID` is how a client resumes a dropped SSE stream
+# (`LAST_EVENT_ID_HEADER` in `mcp.server.streamable_http`). Omitting it breaks
+# only reconnection after packet loss — the worst way to find a bug.
+#
+# The `Mcp-Method` / `Mcp-Name` / `Mcp-Protocol-Version` routing headers of spec
+# 2026-07-28 are deliberately **absent**: fastmcp 3.x pins `mcp` 1.x, where
+# `mcp.shared.inbound` does not exist and nothing reads them. Listing headers
+# this server never reads would be the same guesswork the wildcard was.
+# `test_die_routing_header_gehoeren_hierher_sobald_das_sdk_sie_liest` fails the
+# day that changes.
+CORS_ALLOW_HEADERS = [
+    "Content-Type",
+    "Mcp-Session-Id",
+    "Last-Event-ID",
+]
+
+
+def configured_origins() -> list[str]:
+    """Parse `BLV_MCP_ALLOWED_ORIGINS` into a list. No wildcard."""
+    return [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+
+
+def build_cors_middleware(origins: list[str] | None = None) -> Middleware:
+    """The CORS layer, as one object both `main` and the tests use.
+
+    Pulled out of `main` so the allow-list can be exercised: while it sat inline
+    next to `mcp.run`, the list could only be read, never tried — and a list
+    that reads correctly can still never reach the middleware.
+    """
+    return Middleware(
+        CORSMiddleware,
+        allow_origins=origins if origins is not None else configured_origins(),
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=CORS_ALLOW_HEADERS,
+        expose_headers=["Mcp-Session-Id"],
+    )
+
+
+def build_http_app(origins: list[str] | None = None):
+    """The streamable-HTTP app with the CORS layer above, without binding a port.
+
+    `main` hands the same middleware object to `mcp.run`, which builds an
+    equivalent app internally; this function is how a test reaches it.
+    """
+    return mcp.http_app(transport="http", middleware=[build_cors_middleware(origins)])
+
+
 def main() -> None:
     """CLI entry point — supports stdio (default) and --http (Streamable HTTP)."""
     parser = argparse.ArgumentParser(description="swiss-food-safety-mcp: BLV open data MCP server")
@@ -1222,14 +1275,7 @@ def main() -> None:
     if args.http:
         # CORS: browser MCP clients need Mcp-Session-Id exposed. Origins are
         # explicit (no wildcard) via the BLV_MCP_ALLOWED_ORIGINS env var.
-        allowed_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
-        cors = Middleware(
-            CORSMiddleware,
-            allow_origins=allowed_origins,
-            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-            allow_headers=["*"],
-            expose_headers=["Mcp-Session-Id"],
-        )
+        cors = build_cors_middleware()
         mcp.run(
             transport="streamable-http",
             host=args.host,

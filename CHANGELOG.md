@@ -7,7 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`allow_headers` stand auf `["*"]`.** Der Kommentar daneben versprach «no
+  wildcard» — er galt den Origins; die Header-Liste war eine. Starlette
+  schaltet damit auf `allow_all_headers` und spiegelt im Preflight zurück, was
+  der Browser ankündigt, also durfte jeder gelistete Origin jeden beliebigen
+  Header senden. Die Liste nennt jetzt `Content-Type`, `Mcp-Session-Id` und
+  `Last-Event-ID`. Letzterer setzt einen abgerissenen SSE-Strom fort und war
+  unter der Wildcard nie geprüft: eine Wildcard kann nicht falsch werden.
+
+  Die Routing-Header der Spec `2026-07-28` stehen bewusst **nicht** darauf.
+  fastmcp 3.x pinnt `mcp` 1.x, wo es `mcp.shared.inbound` nicht gibt und
+  niemand sie liest. Der zugehörige Test ist an das SDK gebunden statt an eine
+  Notiz und fällt, sobald ein Upgrade das Modul hereinzieht.
+
+### Changed
+
+- **`build_cors_middleware` und `build_http_app` aus `main` herausgezogen.**
+  Solange die Freigabeliste neben `mcp.run` stand, liess sie sich nur lesen,
+  nicht ausprobieren — und eine Liste, die richtig aussieht, kann trotzdem nie
+  an der Middleware ankommen. `main` reicht dasselbe Objekt an `mcp.run`
+  weiter; am Verhalten ändert sich nichts.
+
 ### Hinzugefuegt
+
+- **Ein Gate für die MCP-Protokollrevision.** Bisher stand dazu nirgends etwas —
+  keine Konstante, kein Satz in einer README, kein Test. Ein SDK-Bump, der die
+  Revision ändert, wäre lautlos durchgelaufen: alles grün, andere Revision am
+  Draht. `tests/test_protocol_version.py` hält jetzt drei Dinge gegeneinander:
+  die dokumentierte Revision `2025-11-25`, `LATEST_PROTOCOL_VERSION` aus dem
+  SDK, und die Revision, die ein echter `initialize` gegen das Server-Objekt
+  zurückgibt.
+
+  Beide READMEs bekommen den Abschnitt «MCP Protocol Version», und der Test
+  prüft beide einzeln — nur die englische anzusehen wäre genau die Lücke, an der
+  die zwei anderswo im Portfolio schon auseinandergelaufen sind.
+
+  Anders als die Schwester-Server pinnt dieser **eine** Revision, kein Paar:
+  fastmcp 3.x zieht `mcp` 1.x herein, wo es `mcp.types.version` nicht gibt.
+  `test_das_sdk_kennt_hier_nur_eine_aera` ist an das SDK gebunden statt an einen
+  Kommentar und fällt, sobald ein Upgrade die beiden Konstanten hereinzieht.
 
 - **SessionStart-Hook, der den Rueckstand des Klons meldet**
   (`.claude/hooks/session-start.sh`, registriert in `.claude/settings.json`).
