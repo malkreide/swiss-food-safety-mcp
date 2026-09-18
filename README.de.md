@@ -346,22 +346,41 @@ leer ist oder mit einem BOM beginnt, oder wenn einer der Befunde überholt ist.
 
 ## MCP-Protokollversion
 
-Die Protokollversion handelt das SDK beim `initialize`-Handshake aus, dieser
-Server wählt sie nicht. Die Revision, gegen die er gebaut und geprüft ist,
-lautet **`2025-11-25`** — das ist `LATEST_PROTOCOL_VERSION` in der `mcp`-Version,
-die fastmcp hereinzieht.
+Dieser Server spricht die Spec **`2026-07-28`** nativ. Er fährt fastmcp 4.x,
+das `mcp` 2.x pinnt, und dieses SDK bedient *zwei* Protokoll-Ären über dasselbe
+Server-Objekt:
 
-`tests/test_protocol_version.py` hält drei Dinge gegeneinander: diese Zeile,
-jene SDK-Konstante und die Revision, die ein echter Handshake gegen das
-Server-Objekt tatsächlich zurückgibt. Ein SDK-Bump, der die Revision ändert,
-macht die CI rot, statt lautlos zu driften.
+| Ära | Revision | Weg des Clients |
+| --- | --- | --- |
+| modern | **`2026-07-28`** | `server/discover`, Metadaten in `_meta.io.modelcontextprotocol/*` |
+| Handshake (Legacy) | **`2025-11-25`** | der klassische `initialize`-Austausch |
 
-Die Schwester-Server im Portfolio pinnen ein *Paar* von Revisionen — eine
-Handshake-Obergrenze und eine moderne —, weil `mcp` 2.x zwei Protokoll-Ären über
-denselben Server bedient. fastmcp 3.x pinnt `mcp` 1.x, wo es `mcp.types.version`
-nicht gibt und eine Revision die ganze Geschichte ist.
-`test_das_sdk_kennt_hier_nur_eine_aera` ist an das SDK gebunden statt an diesen
-Absatz und fällt, sobald ein Upgrade die Zwei-Ären-Konstanten hereinzieht.
+Ein aktueller Client bekommt `2026-07-28`; einer, der noch nicht umgestellt
+hat, fällt auf den Handshake zurück und erhält weiterhin sämtliche Werkzeuge.
+Gewählt wird keine der beiden von diesem Server — das SDK handelt aus, und der
+Pin hält fest, welches Paar dabei herauskommen darf.
+
+Die moderne Ära ist nicht bloss eine höhere Zahl. Sie hat **keinen
+`initialize`-Handshake und kein `InitializeResult`**: `Client.initialize()`
+wirft dort, und die Server-Metadaten kommen stattdessen aus `server/discover`.
+Eine Prüfung, die weiter `initialize_result.protocolVersion` misst, prüfte
+damit nur noch die Legacy-Hälfte und meldete trotzdem Grün für beide.
+
+`tests/test_protocol_version.py` misst jede Ära über ihren eigenen Weg, statt
+Konstanten gegeneinanderzuhalten: Beide Revisionen sind gegen
+`LATEST_MODERN_VERSION` bzw. `LATEST_HANDSHAKE_VERSION` gepinnt, in jedem Modus
+verbindet sich ein echter Client, das strukturelle Fehlen des
+`InitializeResult` in der modernen Ära ist zugesichert, und beide Ären müssen
+dieselben Werkzeuge liefern. `test_das_sdk_fuehrt_weiterhin_zwei_aeren` hält
+die Gegenrichtung — ein Downgrade zurück auf `mcp` 1.x liesse die Hälfte jener
+Zusicherungen sonst als ImportError enden, den niemand liest.
+
+Die Freigabeliste des Transports ist mit dem SDK mitgezogen: `Mcp-Method`,
+`Mcp-Name` und `MCP-Protocol-Version` sind die Routing-Header, die Spec
+`2026-07-28` in HTTP spiegelt, und `mcp.shared.inbound` liest sie jetzt — also
+nennt CORS sie. `Mcp-Param-*` fehlt weiterhin mit Absicht: Die Spec prägt diese
+Header nur für Parameter, die ein Werkzeug mit `x-mcp-header` auszeichnet, und
+das tut hier keines.
 
 ---
 

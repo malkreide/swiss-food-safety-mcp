@@ -7,7 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Spec `2026-07-28` wird nativ gesprochen.** Der Server fährt jetzt
+  fastmcp 4.x, das `mcp` 2.x pinnt (vorher `fastmcp>=3,<4` mit `mcp` 1.x, dessen
+  neuestes Release 1.30.0 bei `2025-11-25` stehenbleibt — die Revision war ohne
+  diesen Bump nicht erreichbar). Damit bedient dasselbe Server-Objekt **zwei
+  Protokoll-Ären**: ein aktueller Client bekommt `2026-07-28` über
+  `server/discover`, ein älterer fällt auf den `initialize`-Handshake mit
+  `2025-11-25` zurück und erhält weiterhin sämtliche elf Werkzeuge.
+
+  Die moderne Ära ist nicht bloss eine höhere Zahl: Sie hat **kein
+  `InitializeResult`** mehr — `Client.initialize()` wirft dort. Eine Prüfung,
+  die weiter `initialize_result.protocolVersion` misst, prüfte damit nur noch
+  die Legacy-Hälfte und meldete trotzdem Grün für beide. Gemessen (fastmcp
+  4.0.5 / `mcp` 2.2.0): modern `2026-07-28`, legacy `2025-11-25`, beide elf
+  Werkzeuge.
+
+- **`tests/test_protocol_version.py` pinnt jetzt ein Paar statt einer
+  Revision.** Genau das hatte die Vorgängerfassung verlangt: ihr
+  `test_das_sdk_kennt_hier_nur_eine_aera` war an das SDK gebunden und ist an
+  diesem Upgrade gefallen. Jede Ära wird über ihren eigenen Weg gemessen, das
+  strukturelle Fehlen des `InitializeResult` ist zugesichert, und beide Ären
+  müssen dieselbe Werkzeugliste liefern. `test_das_sdk_fuehrt_weiterhin_zwei_aeren`
+  hält die Gegenrichtung: Ein Downgrade auf `mcp` 1.x liesse die Hälfte jener
+  Zusicherungen sonst als ImportError enden, den niemand liest. Gegenprobe
+  gefahren — unter fastmcp 3.4.7 fallen zehn der neuen Zusicherungen.
+
+- **`tests/test_tool_manifest.py`** — der Rug-Pull-Wächter (SEC-022) hatte
+  keinen Test; siehe den Eintrag unter *Fixed*.
+
 ### Fixed
+
+- **Der Tool-Hash-Wächter hashte die Python-Schreibweise statt der Drahtform.**
+  `tools/tool_manifest.py` baute die Annotationen mit einem blossen
+  `model_dump()` auf. `mcp` 2.x hat jedes Annotationsfeld umbenannt
+  (`readOnlyHint` → `read_only_hint`), und damit sprang der Digest von
+  `da85755…` auf `80cf836…`, **ohne dass sich eine einzige Werkzeugdefinition
+  bewegt hatte**: dieselben Objekte mit `by_alias=True` gedumpt reproduzierten
+  die committete Basislinie byteweise.
+
+  Der Fehlalarm ist nicht das Teure daran, sondern was er auslöst — wer auf
+  dieses Signal hin `--update` fährt, pinnt die Basislinie neu und winkt alles
+  durch, was im selben Commit mitfuhr. Der Digest hängt jetzt an
+  `model_dump(by_alias=True)`, also an dem, was ein Client tatsächlich sieht;
+  die Basislinie blieb damit unverändert. Der Aufbau der Einträge ist als
+  `_entries()` herausgezogen, damit ein Test messen kann, *womit* gehasht wird
+  statt nur, *dass* sich etwas geändert hat.
 
 - **`allow_headers` stand auf `["*"]`.** Der Kommentar daneben versprach «no
   wildcard» — er galt den Origins; die Header-Liste war eine. Starlette
@@ -17,10 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Last-Event-ID`. Letzterer setzt einen abgerissenen SSE-Strom fort und war
   unter der Wildcard nie geprüft: eine Wildcard kann nicht falsch werden.
 
-  Die Routing-Header der Spec `2026-07-28` stehen bewusst **nicht** darauf.
-  fastmcp 3.x pinnt `mcp` 1.x, wo es `mcp.shared.inbound` nicht gibt und
-  niemand sie liest. Der zugehörige Test ist an das SDK gebunden statt an eine
-  Notiz und fällt, sobald ein Upgrade das Modul hereinzieht.
+  Die Routing-Header der Spec `2026-07-28` standen zunächst bewusst **nicht**
+  darauf: fastmcp 3.x pinnte `mcp` 1.x, wo es `mcp.shared.inbound` nicht gibt
+  und niemand sie liest. Der zugehörige Test war an das SDK gebunden statt an
+  eine Notiz — und ist beim Upgrade weiter unten in derselben Fassung
+  gefallen. Die Liste nennt sie jetzt.
 
 ### Changed
 
