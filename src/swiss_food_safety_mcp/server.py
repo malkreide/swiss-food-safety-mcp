@@ -1206,16 +1206,29 @@ def prompt_animal_disease_report(canton: str = "ZH", year: int = 2024) -> str:
 # (`LAST_EVENT_ID_HEADER` in `mcp.server.streamable_http`). Omitting it breaks
 # only reconnection after packet loss — the worst way to find a bug.
 #
-# The `Mcp-Method` / `Mcp-Name` / `Mcp-Protocol-Version` routing headers of spec
-# 2026-07-28 are deliberately **absent**: fastmcp 3.x pins `mcp` 1.x, where
-# `mcp.shared.inbound` does not exist and nothing reads them. Listing headers
-# this server never reads would be the same guesswork the wildcard was.
-# `test_die_routing_header_gehoeren_hierher_sobald_das_sdk_sie_liest` fails the
-# day that changes.
+# The `Mcp-Method` / `Mcp-Name` / `MCP-Protocol-Version` routing headers of spec
+# 2026-07-28 are listed now, and that is a change of fact, not of taste: this
+# server runs fastmcp 4.x, which pins `mcp` 2.x, where `mcp.shared.inbound`
+# exists and classifies every inbound request by exactly these three. They used
+# to be absent on the grounds that nothing read them — true under `mcp` 1.x, and
+# the reason the entry above stood as a warning rather than a TODO.
+# `test_die_routing_header_gehoeren_hierher_sobald_das_sdk_sie_liest` is what
+# turned that warning into a failing test the day the SDK changed.
+#
+# `Mcp-Param-*` stays out, and for the same reason the three above used to:
+# the spec mints those headers only for parameters a tool marks with
+# `x-mcp-header`, which is optional for servers and which no tool here
+# declares. A prefix cannot be pre-flighted anyway — CORS matches header names
+# whole, so a wildcard entry would be the one thing this list exists to avoid.
+# `test_kein_mcp_param_header_ohne_x_mcp_header` re-measures that instead of
+# trusting this paragraph.
 CORS_ALLOW_HEADERS = [
     "Content-Type",
     "Mcp-Session-Id",
     "Last-Event-ID",
+    "Mcp-Method",
+    "Mcp-Name",
+    "MCP-Protocol-Version",
 ]
 
 

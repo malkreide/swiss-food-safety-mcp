@@ -23,18 +23,45 @@ from swiss_food_safety_mcp.server import mcp
 BASELINE = Path(__file__).parent / "tool-hashes.json"
 
 
-def _manifest() -> dict:
-    """Build the deterministic tool manifest with its SHA-256 digest."""
-    tools = asyncio.run(mcp.list_tools())
+def _entries() -> dict[str, dict]:
+    """Die gehashten Werkzeugeintraege — eigene Funktion, damit sie pruefbar ist.
+
+    Solange dieser Aufbau in `_manifest` eingeschlossen war, kam von aussen nur
+    der fertige Digest heraus. Ein Test konnte damit zwar merken, *dass* sich
+    etwas geaendert hat, aber nicht, *womit* gehasht wurde — und genau das ist
+    die Eigenschaft, an der der Waechter haengt.
+    """
     entries: dict[str, dict] = {}
-    for tool in tools:
+    for tool in asyncio.run(mcp.list_tools()):
         mcp_tool = tool.to_mcp_tool()
         annotations = mcp_tool.annotations
         entries[mcp_tool.name] = {
             "description": mcp_tool.description or "",
-            "input_schema": mcp_tool.inputSchema,
-            "annotations": annotations.model_dump() if annotations else None,
+            "input_schema": mcp_tool.input_schema,
+            "annotations": annotations.model_dump(by_alias=True) if annotations else None,
         }
+    return entries
+
+
+def _manifest() -> dict:
+    """Build the deterministic tool manifest with its SHA-256 digest.
+
+    `by_alias=True` is load-bearing, not styling. The digest must cover what a
+    client receives over the wire, and that is the alias spelling — the spec
+    serialises `readOnlyHint`, not `read_only_hint`. Dumping by field name
+    instead ties a rug-pull detector to the SDK's *internal* Python naming, so
+    it reports the one thing that cannot hurt anyone and stays silent on real
+    drift underneath.
+
+    That is not hypothetical. The `mcp` 1.x -> 2.x upgrade renamed every
+    annotation field, and the bare `model_dump()` that stood here changed the
+    digest from `da85755…` to `80cf836…` while not one tool definition had
+    moved: dumping the same objects with `by_alias=True` reproduced the
+    committed baseline byte for byte. Rebaselining on that signal would have
+    re-pinned the detector against a cosmetic change — and waved through
+    whatever else rode along in the same commit.
+    """
+    entries = _entries()
     blob = json.dumps(entries, sort_keys=True, ensure_ascii=False)
     digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()
     return {"sha256": digest, "tools": sorted(entries)}

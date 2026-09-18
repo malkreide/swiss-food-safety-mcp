@@ -653,8 +653,8 @@ async def test_all_tools_are_annotated_read_only():
     assert len(tools) == 11
     for tool in tools:
         assert tool.annotations is not None, tool.name
-        assert tool.annotations.readOnlyHint is True, tool.name
-        assert tool.annotations.openWorldHint is True, tool.name
+        assert tool.annotations.read_only_hint is True, tool.name
+        assert tool.annotations.open_world_hint is True, tool.name
 
 
 # ---------------------------------------------------------------------------

@@ -99,31 +99,69 @@ def test_keine_wildcard_in_der_freigabeliste() -> None:
 
 
 def test_die_routing_header_gehoeren_hierher_sobald_das_sdk_sie_liest() -> None:
-    """Warum `Mcp-Method` & Co. hier **nicht** stehen — und wann sie müssen.
+    """Die drei Routing-Header der Spec `2026-07-28`, gegen das SDK gehalten.
 
-    Spec `2026-07-28` routet eine Anfrage über drei Header. Gelesen werden sie
-    von `mcp.shared.inbound`, und das Modul gibt es erst ab `mcp` 2.x. fastmcp
-    3.x pinnt `mcp` 1.x: dieser Server liest sie schlicht nicht, und sie zu
-    nennen wäre dieselbe Raterei wie die Wildcard.
+    Dieser Test stand hier, solange die Header **nicht** freigegeben waren: er
+    war an `mcp.shared.inbound` gebunden statt an eine Notiz im Kommentar, und
+    er ist beim Upgrade auf fastmcp 4.x / `mcp` 2.x gefallen — genau dafür war
+    er da. Die Liste ist nachgezogen; der Test bleibt, weil er jetzt die andere
+    Richtung hält: benennt eine SDK-Version einen dieser Header um, fällt er
+    wieder, statt dass Browser-Clients still am Preflight scheitern.
 
-    Der Test ist deshalb an das SDK gebunden statt an eine Notiz im Kommentar.
-    Zieht ein Upgrade `mcp.shared.inbound` herein, fällt er — und sagt, dass die
-    Liste nachziehen muss, bevor Browser-Clients daran scheitern.
+    Nicht gegen abgeschriebene Zeichenketten geprüft, sondern gegen die
+    Konstanten, die das SDK beim Einordnen der Anfrage tatsächlich liest.
     """
-    try:
-        from mcp.shared.inbound import (
-            MCP_METHOD_HEADER,
-            MCP_NAME_HEADER,
-            MCP_PROTOCOL_VERSION_HEADER,
-        )
-    except ModuleNotFoundError:
-        pytest.skip("mcp 1.x: es gibt keine Routing-Header, die freizugeben waeren")
+    from mcp.shared.inbound import (
+        MCP_METHOD_HEADER,
+        MCP_NAME_HEADER,
+        MCP_PROTOCOL_VERSION_HEADER,
+    )
 
     erlaubt = {h.lower() for h in CORS_ALLOW_HEADERS}
     noetig = {MCP_METHOD_HEADER, MCP_NAME_HEADER, MCP_PROTOCOL_VERSION_HEADER}
     assert noetig <= erlaubt, (
-        f"Das SDK liest jetzt Routing-Header, die Freigabeliste nennt sie nicht: "
+        f"Das SDK liest Routing-Header, die Freigabeliste nennt sie nicht: "
         f"{sorted(noetig - erlaubt)}"
+    )
+
+
+async def test_kein_mcp_param_header_ohne_x_mcp_header() -> None:
+    """Die Gegenprobe zur Freigabeliste: was **nicht** hineingehört.
+
+    Spec `2026-07-28` prägt `Mcp-Param-{Name}`-Header nur für Parameter, die
+    ein Werkzeug mit `x-mcp-header` auszeichnet — für Server optional. Solange
+    kein Werkzeug hier das tut, schickt kein Client solche Header, und ein
+    Eintrag dafür wäre geraten statt gemessen.
+
+    Der Test misst deshalb die Voraussetzung, nicht die Liste: Bekommt ein
+    Werkzeug eines Tages ein `x-mcp-header`, fällt er und verlangt den
+    passenden Eintrag. Andersherum — nur zu prüfen, dass kein `Mcp-Param-` in
+    der Liste steht — bliebe grün, gerade wenn die Auszeichnung dazukommt.
+    """
+    import json
+
+    from fastmcp import Client
+
+    from swiss_food_safety_mcp.server import mcp
+
+    async with Client(mcp) as client:
+        ausgezeichnet = [
+            t.name
+            for t in await client.list_tools()
+            if "x-mcp-header" in json.dumps(t.input_schema or {})
+        ]
+
+    if ausgezeichnet:
+        praefix = {h for h in CORS_ALLOW_HEADERS if h.lower().startswith("mcp-param-")}
+        pytest.fail(
+            f"Werkzeuge zeichnen jetzt Parameter mit `x-mcp-header` aus "
+            f"({sorted(ausgezeichnet)}); die Freigabeliste braucht die zugehörigen "
+            f"`Mcp-Param-*`-Header. Bisher gelistet: {sorted(praefix) or 'keine'}."
+        )
+
+    assert not [h for h in CORS_ALLOW_HEADERS if h.lower().startswith("mcp-param-")], (
+        "Die Liste nennt `Mcp-Param-*`-Header, obwohl kein Werkzeug `x-mcp-header` "
+        "auszeichnet — das ist geraten, nicht gemessen."
     )
 
 
