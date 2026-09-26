@@ -284,10 +284,11 @@ wie der Code: Nichts ist rot, weil nichts geprüft wird, worauf es ankommt.
 
 ## Teil 2 — Dieses Repo
 
-**ruff: eine Quelle.** `pyproject.toml`, `dev`-Extra, `ruff==0.16.3`. Die CI
-hat keinen eigenen Pin-Schritt — der Install über `ci.yml` genügt, lokal wie
-dort. Eine `.pre-commit-config.yaml` gibt es nicht; wenn eine dazukommt, muss
-sie dieselbe Version aus `pyproject.toml` beziehen und keine zweite nennen.
+**ruff: eine Quelle.** `pyproject.toml`, `dev`-Extra, dort exakt; die Version
+dort nachlesen, nicht hier. Die CI hat keinen eigenen Pin-Schritt — der
+Install über `ci.yml` genügt, lokal wie dort. Eine `.pre-commit-config.yaml`
+gibt es nicht; wenn eine dazukommt, muss sie dieselbe Version aus
+`pyproject.toml` beziehen und keine zweite nennen.
 `tests/test_werkzeug_versionen.py` hält das fest, statt es zu behaupten — der
 Rückfall wäre still, er macht kein Gate rot. Der Test scannt allerdings nur
 `.github/workflows/*.yml|*.yaml`; eine `.pre-commit-config.yaml` läge
