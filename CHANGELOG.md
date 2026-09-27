@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [1.2.0] - 2026-09-27
+
+Hauptgrund für dieses Release ist die Datenauswahl. Sieben der elf Werkzeuge
+wurden am 2026-08-08 zum ersten Mal gegen ihre Quellen getrieben; sechs gaben
+etwas anderes aus, als sie versprachen — und keines sah dabei nach einem Fehler
+aus. Die Fehler stecken in allen Versionen bis einschliesslich 1.1.5 (siehe
+*Behoben*). Dazu kommen eine zu weite CORS-Freigabe (*Sicherheit*) und die
+Protokollrevision `2026-07-28`, die der Server jetzt nativ spricht; ältere
+Clients bekommen weiterhin den Handshake mit `2025-11-25`.
+
+**Eine inkompatible Änderung:** `blv_get_nutrition_data_children` nimmt
+`nutrient` nicht mehr an (siehe *Geaendert*).
+
+### Hinzugefuegt
 
 - **Spec `2026-07-28` wird nativ gesprochen.** Der Server fährt jetzt
   fastmcp 4.x, das `mcp` 2.x pinnt (vorher `fastmcp>=3,<4` mit `mcp` 1.x, dessen
@@ -24,77 +37,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   4.0.5 / `mcp` 2.2.0): modern `2026-07-28`, legacy `2025-11-25`, beide elf
   Werkzeuge.
 
-- **`tests/test_protocol_version.py` pinnt jetzt ein Paar statt einer
-  Revision.** Genau das hatte die Vorgängerfassung verlangt: ihr
-  `test_das_sdk_kennt_hier_nur_eine_aera` war an das SDK gebunden und ist an
-  diesem Upgrade gefallen. Jede Ära wird über ihren eigenen Weg gemessen, das
-  strukturelle Fehlen des `InitializeResult` ist zugesichert, und beide Ären
-  müssen dieselbe Werkzeugliste liefern. `test_das_sdk_fuehrt_weiterhin_zwei_aeren`
-  hält die Gegenrichtung: Ein Downgrade auf `mcp` 1.x liesse die Hälfte jener
+- **Ein Gate für die MCP-Protokollrevision — als Paar.** Bisher stand dazu
+  nirgends etwas — keine Konstante, kein Satz in einer README, kein Test. Ein
+  SDK-Bump, der die Revision ändert, wäre lautlos durchgelaufen: alles grün,
+  andere Revision am Draht.
+
+  `tests/test_protocol_version.py` pinnt beide Ären, die der Server bedient:
+  `2026-07-28` gegen `LATEST_MODERN_VERSION`, `2025-11-25` gegen
+  `LATEST_HANDSHAKE_VERSION`. Jede wird über ihren eigenen Weg gemessen — ein
+  echter Client im modernen und einer im Legacy-Modus —, das strukturelle
+  Fehlen des `InitializeResult` ist zugesichert, und beide Ären müssen dieselbe
+  Werkzeugliste liefern. Beide READMEs tragen den Abschnitt «MCP Protocol
+  Version», und der Test prüft beide einzeln — nur die englische anzusehen wäre
+  genau die Lücke, an der die zwei anderswo im Portfolio schon
+  auseinandergelaufen sind.
+
+  Das Gate entstand zunächst mit **einer** Revision (`2025-11-25`): fastmcp 3.x
+  zog `mcp` 1.x herein, wo es `mcp.types.version` nicht gibt. Ein an das SDK
+  gebundener Wächter sollte fallen, sobald ein Upgrade die Zwei-Ären-Konstanten
+  brachte — beim Umstieg auf fastmcp 4.x ist er gefallen und hat die
+  Erweiterung verlangt, die jetzt drinsteht. `test_das_sdk_fuehrt_weiterhin_zwei_aeren`
+  hält die Gegenrichtung: Ein Downgrade auf `mcp` 1.x liesse die Hälfte der
   Zusicherungen sonst als ImportError enden, den niemand liest. Gegenprobe
   gefahren — unter fastmcp 3.4.7 fallen zehn der neuen Zusicherungen.
 
 - **`tests/test_tool_manifest.py`** — der Rug-Pull-Wächter (SEC-022) hatte
-  keinen Test; siehe den Eintrag unter *Fixed*.
-
-### Fixed
-
-- **Der Tool-Hash-Wächter hashte die Python-Schreibweise statt der Drahtform.**
-  `tools/tool_manifest.py` baute die Annotationen mit einem blossen
-  `model_dump()` auf. `mcp` 2.x hat jedes Annotationsfeld umbenannt
-  (`readOnlyHint` → `read_only_hint`), und damit sprang der Digest von
-  `da85755…` auf `80cf836…`, **ohne dass sich eine einzige Werkzeugdefinition
-  bewegt hatte**: dieselben Objekte mit `by_alias=True` gedumpt reproduzierten
-  die committete Basislinie byteweise.
-
-  Der Fehlalarm ist nicht das Teure daran, sondern was er auslöst — wer auf
-  dieses Signal hin `--update` fährt, pinnt die Basislinie neu und winkt alles
-  durch, was im selben Commit mitfuhr. Der Digest hängt jetzt an
-  `model_dump(by_alias=True)`, also an dem, was ein Client tatsächlich sieht;
-  die Basislinie blieb damit unverändert. Der Aufbau der Einträge ist als
-  `_entries()` herausgezogen, damit ein Test messen kann, *womit* gehasht wird
-  statt nur, *dass* sich etwas geändert hat.
-
-- **`allow_headers` stand auf `["*"]`.** Der Kommentar daneben versprach «no
-  wildcard» — er galt den Origins; die Header-Liste war eine. Starlette
-  schaltet damit auf `allow_all_headers` und spiegelt im Preflight zurück, was
-  der Browser ankündigt, also durfte jeder gelistete Origin jeden beliebigen
-  Header senden. Die Liste nennt jetzt `Content-Type`, `Mcp-Session-Id` und
-  `Last-Event-ID`. Letzterer setzt einen abgerissenen SSE-Strom fort und war
-  unter der Wildcard nie geprüft: eine Wildcard kann nicht falsch werden.
-
-  Die Routing-Header der Spec `2026-07-28` standen zunächst bewusst **nicht**
-  darauf: fastmcp 3.x pinnte `mcp` 1.x, wo es `mcp.shared.inbound` nicht gibt
-  und niemand sie liest. Der zugehörige Test war an das SDK gebunden statt an
-  eine Notiz — und ist beim Upgrade weiter unten in derselben Fassung
-  gefallen. Die Liste nennt sie jetzt.
-
-### Changed
-
-- **`build_cors_middleware` und `build_http_app` aus `main` herausgezogen.**
-  Solange die Freigabeliste neben `mcp.run` stand, liess sie sich nur lesen,
-  nicht ausprobieren — und eine Liste, die richtig aussieht, kann trotzdem nie
-  an der Middleware ankommen. `main` reicht dasselbe Objekt an `mcp.run`
-  weiter; am Verhalten ändert sich nichts.
-
-### Hinzugefuegt
-
-- **Ein Gate für die MCP-Protokollrevision.** Bisher stand dazu nirgends etwas —
-  keine Konstante, kein Satz in einer README, kein Test. Ein SDK-Bump, der die
-  Revision ändert, wäre lautlos durchgelaufen: alles grün, andere Revision am
-  Draht. `tests/test_protocol_version.py` hält jetzt drei Dinge gegeneinander:
-  die dokumentierte Revision `2025-11-25`, `LATEST_PROTOCOL_VERSION` aus dem
-  SDK, und die Revision, die ein echter `initialize` gegen das Server-Objekt
-  zurückgibt.
-
-  Beide READMEs bekommen den Abschnitt «MCP Protocol Version», und der Test
-  prüft beide einzeln — nur die englische anzusehen wäre genau die Lücke, an der
-  die zwei anderswo im Portfolio schon auseinandergelaufen sind.
-
-  Anders als die Schwester-Server pinnt dieser **eine** Revision, kein Paar:
-  fastmcp 3.x zieht `mcp` 1.x herein, wo es `mcp.types.version` nicht gibt.
-  `test_das_sdk_kennt_hier_nur_eine_aera` ist an das SDK gebunden statt an einen
-  Kommentar und fällt, sobald ein Upgrade die beiden Konstanten hereinzieht.
+  keinen Test; siehe den Eintrag unter *Behoben*.
 
 - **SessionStart-Hook, der den Rueckstand des Klons meldet**
   (`.claude/hooks/session-start.sh`, registriert in `.claude/settings.json`).
@@ -128,6 +96,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Ersatz-git erkannte `fetch` nur als `$1` — im Zweig ohne `timeout` steht
   dort `-c`. Beide Tests waren gruen und prueften nichts.
 
+- **Aufgezeichnete Messungen** — `scripts/record_fixtures.py`,
+  `tests/fixtures/` und ein `PROVENANCE.md` mit Quelle, Datum, Auswahlregel und
+  SHA-256 je Datei.
+
+  Aufgezeichnet ist nicht der Datensatz, sondern die **Auswahl**: je Werkzeug
+  der gepinnte Slug, die getroffene Ressource und deren Kopfzeile. Die
+  Kopfzeile ist der Gegenstand — sie trennt Daten von einer Legende und zeigt,
+  ob BOM und Trennzeichen stimmen.
+
+  Der Anlass steht in einer Zeile: Die Mocks nannten jede CKAN-Ressource
+  `"name": "CSV"`. Bei der Quelle heisst dasselbe Feld «Food establishments
+  2025» oder «Food establishments codelist administrative measures», und genau
+  dieser Unterschied entschied ueber die Antwort. Die Mocks konnten die
+  Unterscheidung nicht ausdruecken, also konnte kein Test daran scheitern.
+
+  Zwei der Messungen sind **Kontrollen**: ein erfundener Pfad unter
+  `lindas.admin.ch` und eine erfundene Klasse im `fsvo`-Namensraum. Ohne sie
+  belegte die Messung nur, was ich bekommen habe.
+
+- **`tests/test_datenauswahl.py`** — 21 Tests, die **in** der CI laufen. Dieses
+  Repo hatte einen einzigen Live-Test fuer elf Werkzeuge, und der pruefte
+  keines davon.
+
+  Gegengeprueft mit sechs gezielten Rueckmutationen: SPARQL-Endpunkt zurueck,
+  erste Ressource statt gepinnter, Stichwortsuche statt Pinning, BOM nicht
+  entfernen, Trennzeichen fest auf Komma, ZIP-Wache entfernen. Alle sechs
+  machen die Suite rot.
+
+### Geaendert
+
+- **Inkompatibel: `blv_get_nutrition_data_children` — der Parameter
+  `nutrient` heisst jetzt `answer_code`.** Ein Aufruf mit dem alten Namen
+  scheitert an der Schema-Validierung (`additionalProperties: false`,
+  «Unexpected keyword argument»), statt still ignoriert zu werden — gemessen,
+  nicht angenommen. Der alte Parameter war als Nährstofffilter dokumentiert,
+  filterte aber als Teilstring über die ganze Zeile: Mit den dokumentierten
+  Beispielen («Energie», «Zucker», «Eisen») traf er nichts, mit anderen
+  Begriffen durchaus. Wer ihn fest verdrahtet hat und dabei Treffer bekam,
+  bekommt jetzt einen Fehler. Ein MCP-Client, der das Schema pro Sitzung
+  liest, passt sich an. Die übrigen zehn Werkzeuge sind in Namen und
+  Parametern unverändert — per AST-Vergleich gegen 1.1.5 geprüft.
+
+- **Laufzeitabhängigkeit `fastmcp>=4.0.0,<5.0.0`** statt `>=3.0.0,<4.0.0`,
+  und damit `mcp` 2.x statt 1.x. Clients merken davon nichts: Der
+  Legacy-Handshake wird weiter bedient (siehe *Hinzugefuegt*). Wer das Paket in
+  eine gemeinsame Umgebung mit fastmcp 3.x installiert, bekommt einen
+  Auflösungskonflikt; `uvx` isoliert ihn.
+
+- **Datensaetze und Ressourcen sind gepinnt, nicht gesucht** (`DATENQUELLEN`).
+  «Der erste Suchtreffer» und «die erste Ressource dieses Formats» sind keine
+  Auswahlregeln, sondern Wetten darauf, wie opendata.swiss sortiert — und beide
+  Wetten gingen verloren. Ein Stichwortsuchlauf hat zudem die Eigenschaft,
+  still auf etwas Plausibles zurueckzufallen; ein gepinnter Slug, den es nicht
+  mehr gibt, faellt auf.
+
+  `_daten_ressource()` meldet eine fehlende Ressource als `UpstreamShapeError`
+  und nennt dabei, was stattdessen da war. `blv_search_pesticide_products`
+  sucht weiterhin — dort ist es bewusst, und der strukturierte Fehler bleibt.
+
+- **`build_cors_middleware` und `build_http_app` aus `main` herausgezogen.**
+  Solange die Freigabeliste neben `mcp.run` stand, liess sie sich nur lesen,
+  nicht ausprobieren — und eine Liste, die richtig aussieht, kann trotzdem nie
+  an der Middleware ankommen. `main` reicht dasselbe Objekt an `mcp.run`
+  weiter; am Verhalten ändert sich nichts.
+
 ### Entfernt
 
 - **`dist/` mit Wheels der Version 1.1.3 aus der Versionskontrolle
@@ -143,12 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dist/` stand bereits in der `.gitignore` — die entfernt aber nur, was noch
   nicht getrackt ist.
 
-
 ### Behoben
-
-Sieben der elf Werkzeuge wurden am 2026-08-08 zum ersten Mal gegen ihre
-Quellen getrieben. Sechs gaben etwas anderes aus, als sie versprachen — und
-keines sah dabei nach einem Fehler aus.
 
 - **`blv_search_animal_diseases` hat nie Daten geliefert.** Zwei Fehler
   hintereinander:
@@ -218,48 +246,40 @@ keines sah dabei nach einem Fehler aus.
   `answer_code` statt `nutrient`. Naehrwertdaten fuer Erwachsene liegen als
   eigener Datensatz vor; ihn hier anzuflanschen waere eine Erfindung.
 
-### Geaendert
+- **Der Tool-Hash-Wächter hashte die Python-Schreibweise statt der Drahtform.**
+  `tools/tool_manifest.py` baute die Annotationen mit einem blossen
+  `model_dump()` auf. `mcp` 2.x hat jedes Annotationsfeld umbenannt
+  (`readOnlyHint` → `read_only_hint`), und damit sprang der Digest von
+  `da85755…` auf `80cf836…`, **ohne dass sich eine einzige Werkzeugdefinition
+  bewegt hatte**: dieselben Objekte mit `by_alias=True` gedumpt reproduzierten
+  die committete Basislinie byteweise.
 
-- **Datensaetze und Ressourcen sind gepinnt, nicht gesucht** (`DATENQUELLEN`).
-  «Der erste Suchtreffer» und «die erste Ressource dieses Formats» sind keine
-  Auswahlregeln, sondern Wetten darauf, wie opendata.swiss sortiert — und beide
-  Wetten gingen verloren. Ein Stichwortsuchlauf hat zudem die Eigenschaft,
-  still auf etwas Plausibles zurueckzufallen; ein gepinnter Slug, den es nicht
-  mehr gibt, faellt auf.
+  Der Fehlalarm ist nicht das Teure daran, sondern was er auslöst — wer auf
+  dieses Signal hin `--update` fährt, pinnt die Basislinie neu und winkt alles
+  durch, was im selben Commit mitfuhr. Der Digest hängt jetzt an
+  `model_dump(by_alias=True)`, also an dem, was ein Client tatsächlich sieht;
+  die Basislinie blieb damit unverändert. Der Aufbau der Einträge ist als
+  `_entries()` herausgezogen, damit ein Test messen kann, *womit* gehasht wird
+  statt nur, *dass* sich etwas geändert hat.
 
-  `_daten_ressource()` meldet eine fehlende Ressource als `UpstreamShapeError`
-  und nennt dabei, was stattdessen da war. `blv_search_pesticide_products`
-  sucht weiterhin — dort ist es bewusst, und der strukturierte Fehler bleibt.
+### Sicherheit
 
-### Hinzugefuegt
+- **`allow_headers` stand auf `["*"]`.** Der Kommentar daneben versprach «no
+  wildcard» — er galt den Origins; die Header-Liste war eine. Starlette
+  schaltet damit auf `allow_all_headers` und spiegelt im Preflight zurück, was
+  der Browser ankündigt, also durfte jeder gelistete Origin jeden beliebigen
+  Header senden. Die Liste nennt jetzt `Content-Type`, `Mcp-Session-Id`,
+  `Last-Event-ID` und die drei Routing-Header der Spec `2026-07-28`
+  (`Mcp-Method`, `Mcp-Name`, `MCP-Protocol-Version`). `Last-Event-ID` setzt
+  einen abgerissenen SSE-Strom fort und war unter der Wildcard nie geprüft:
+  eine Wildcard kann nicht falsch werden.
 
-- **Aufgezeichnete Messungen** — `scripts/record_fixtures.py`,
-  `tests/fixtures/` und ein `PROVENANCE.md` mit Quelle, Datum, Auswahlregel und
-  SHA-256 je Datei.
-
-  Aufgezeichnet ist nicht der Datensatz, sondern die **Auswahl**: je Werkzeug
-  der gepinnte Slug, die getroffene Ressource und deren Kopfzeile. Die
-  Kopfzeile ist der Gegenstand — sie trennt Daten von einer Legende und zeigt,
-  ob BOM und Trennzeichen stimmen.
-
-  Der Anlass steht in einer Zeile: Die Mocks nannten jede CKAN-Ressource
-  `"name": "CSV"`. Bei der Quelle heisst dasselbe Feld «Food establishments
-  2025» oder «Food establishments codelist administrative measures», und genau
-  dieser Unterschied entschied ueber die Antwort. Die Mocks konnten die
-  Unterscheidung nicht ausdruecken, also konnte kein Test daran scheitern.
-
-  Zwei der Messungen sind **Kontrollen**: ein erfundener Pfad unter
-  `lindas.admin.ch` und eine erfundene Klasse im `fsvo`-Namensraum. Ohne sie
-  belegte die Messung nur, was ich bekommen habe.
-
-- **`tests/test_datenauswahl.py`** — 21 Tests, die **in** der CI laufen. Dieses
-  Repo hatte einen einzigen Live-Test fuer elf Werkzeuge, und der pruefte
-  keines davon.
-
-  Gegengeprueft mit sechs gezielten Rueckmutationen: SPARQL-Endpunkt zurueck,
-  erste Ressource statt gepinnter, Stichwortsuche statt Pinning, BOM nicht
-  entfernen, Trennzeichen fest auf Komma, ZIP-Wache entfernen. Alle sechs
-  machen die Suite rot.
+  Die Routing-Header standen zunächst bewusst **nicht** darauf: fastmcp 3.x
+  pinnte `mcp` 1.x, wo es `mcp.shared.inbound` nicht gibt und niemand sie
+  liest. Der zugehörige Test war an das SDK gebunden statt an eine Notiz und
+  ist beim Umstieg auf fastmcp 4.x gefallen. `Mcp-Param-*` fehlt weiterhin mit
+  Absicht — die Spec prägt diese Header nur für Parameter mit `x-mcp-header`,
+  und kein Werkzeug hier zeichnet einen aus.
 
 ## [1.1.5] - 2026-07-31
 
